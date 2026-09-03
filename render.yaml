@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: discordshrink-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: discordshrink-web
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_COMPRESSION_SERVER_URL
+        fromService:
+          type: web
+          name: discordshrink-api
+          property: host
