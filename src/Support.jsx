@@ -98,6 +98,7 @@ function ContactModal({ open, onClose, goToPage }) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [submitState, setSubmitState] = useState("idle"); // idle | sending | sent | error
   const [errorMessage, setErrorMessage] = useState("");
+  const [ticketId, setTicketId] = useState(null);
 
   const relatedArticles = useMemo(() => {
     const q = message.trim().toLowerCase();
@@ -133,6 +134,8 @@ function ContactModal({ open, onClose, goToPage }) {
         throw new Error(data.error || "Something went wrong sending your message.");
       }
 
+      const data = await res.json();
+      setTicketId(data.ticketId || null);
       setSubmitState("sent");
     } catch (err) {
       setSubmitState("error");
@@ -153,6 +156,7 @@ function ContactModal({ open, onClose, goToPage }) {
       setMessage("");
       setIssueType(ISSUE_TYPES[0]);
       setSubmitState("idle");
+      setTicketId(null);
     }
   }
 
@@ -173,6 +177,12 @@ function ContactModal({ open, onClose, goToPage }) {
           <div className="support-modal-success">
             <div className="support-modal-success-icon">✅</div>
             <h2 id="contact-modal-title">Message sent!</h2>
+            {ticketId && (
+              <div className="support-ticket-id">
+                <span>Your reference code</span>
+                <strong>{ticketId}</strong>
+              </div>
+            )}
             <p>Thanks — we'll get back to you at {email || "the email you provided"} as soon as we can.</p>
             <button className="support-submit-btn" onClick={handleClose}>
               Done
