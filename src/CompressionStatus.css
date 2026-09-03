@@ -222,6 +222,206 @@
   }
 }
 
+/* ===== Status dot color states ===== */
+
+.status-dot-up {
+  background: #61ff9a;
+  box-shadow:
+    0 0 6px rgba(97, 255, 154, 0.95),
+    0 0 15px rgba(97, 255, 154, 0.65);
+}
+
+.status-dot-down {
+  background: #ff6b6b;
+  box-shadow:
+    0 0 6px rgba(255, 107, 107, 0.95),
+    0 0 15px rgba(255, 107, 107, 0.6);
+}
+
+.status-dot-pending {
+  background: #ffd166;
+  box-shadow:
+    0 0 6px rgba(255, 209, 102, 0.9),
+    0 0 15px rgba(255, 209, 102, 0.55);
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+.status-live-degraded {
+  border-color: rgba(255, 140, 140, 0.28);
+  background: rgba(255, 100, 100, 0.08);
+  color: rgba(255, 225, 225, 0.9);
+}
+
+.status-live-dot-degraded {
+  background: #ff6b6b;
+  box-shadow:
+    0 0 6px rgba(255, 107, 107, 0.95),
+    0 0 15px rgba(255, 107, 107, 0.65);
+}
+
+.status-latency {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ===== Uptime history bar ===== */
+
+.status-uptime {
+  position: relative;
+  z-index: 1;
+  margin-top: 22px;
+}
+
+.status-uptime-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-uptime-caption {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+
+.status-uptime-bar {
+  display: flex;
+  gap: 3px;
+}
+
+.status-uptime-block {
+  flex: 1;
+  height: 26px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.status-uptime-up {
+  background: rgba(97, 255, 154, 0.75);
+}
+
+.status-uptime-down {
+  background: rgba(255, 107, 107, 0.8);
+}
+
+.status-uptime-unknown {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ===== Stats ticker ===== */
+
+.status-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  width: min(800px, 90%);
+  margin: 22px auto 0;
+}
+
+.status-stat-card {
+  padding: 18px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0.035)
+    );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  text-align: center;
+}
+
+.status-stat-value {
+  display: block;
+  color: #f2ecff;
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 900;
+}
+
+.status-stat-label {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ===== Incident history ===== */
+
+.status-incidents {
+  width: min(800px, 90%);
+  margin: 26px auto 0;
+  text-align: left;
+}
+
+.status-incidents h3 {
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-incidents-list {
+  display: grid;
+  gap: 10px;
+}
+
+.status-incident-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.status-incident-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #61ff9a;
+  box-shadow: 0 0 6px rgba(97, 255, 154, 0.8);
+}
+
+.status-incident-active {
+  background: #ffd166;
+  box-shadow: 0 0 6px rgba(255, 209, 102, 0.8);
+}
+
+.status-incident-date {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-incident-detail {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .status-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 600px) {
   .status-page {
     padding: 35px 20px 50px;
