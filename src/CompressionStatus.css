@@ -1,6 +1,49 @@
 /* ===== Compression Status ===== */
 /* UI-only styles: no API, state, routing, or backend behavior is changed. */
 
+.status-page {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 50px 30px 70px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.status-title {
+  position: relative;
+  color: white;
+  margin-bottom: 38px;
+}
+
+.status-eyebrow-page {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(210, 194, 255, 0.75);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.status-title h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 900;
+  letter-spacing: -1px;
+  background:
+    linear-gradient(180deg, #ffffff 10%, #d7c4ff 45%, #9b6cff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 0 20px rgba(155,90,255,.45));
+}
+
+.status-title p {
+  margin: 12px 0 0;
+  color: #aaa9bd;
+  font-size: 16px;
+}
+
 .status-card {
   width: min(800px, 90%);
   margin: 40px auto 0;
@@ -176,6 +219,10 @@
 }
 
 @media (max-width: 600px) {
+  .status-page {
+    padding: 35px 20px 50px;
+  }
+
   .status-card {
     width: 90%;
     margin-top: 28px;

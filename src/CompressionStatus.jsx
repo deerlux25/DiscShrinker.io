@@ -2,7 +2,15 @@ import "./CompressionStatus.css";
 
 function CompressionStatus() {
   return (
-    <section className="status-card" aria-labelledby="system-status-title">
+    <section className="status-page">
+
+      <div className="status-title">
+        <span className="status-eyebrow-page">LIVE MONITOR</span>
+        <h1>⚡ DiscShrink Status</h1>
+        <p>Real-time status of the compressor and its services.</p>
+      </div>
+
+      <div className="status-card" aria-labelledby="system-status-title">
       <div className="status-card-header">
         <div>
           <span className="status-eyebrow">LIVE MONITOR</span>
@@ -49,6 +57,8 @@ function CompressionStatus() {
           </div>
         </div>
       </div>
+      </div>
+
     </section>
   );
 }

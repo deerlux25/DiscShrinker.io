@@ -103,7 +103,7 @@ function App() {
       <nav className="navbar">
 
         <div className="logo">
-          ⚡ DiscordShrink
+          ⚡DiscShrink
         </div>
 
 
@@ -154,6 +154,21 @@ function App() {
           </span>
 
 
+
+          <span
+            className={
+              page === "status"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setPage("status")
+            }
+          >
+            Status
+          </span>
+
+
         </div>
 
       </nav>
@@ -166,11 +181,11 @@ function App() {
 
           <section className="hero">
 
-            <img
-              className="electric-title"
-              src="/electric-title.png"
-              alt="Free Discord Video Compressor"
-            />
+            <h1>
+              Free Discord
+              <br />
+              Video Compressor
+            </h1>
 
           </section>
 
@@ -286,9 +301,6 @@ function App() {
 
           </section>
 
-
-          <CompressionStatus />
-
         </>
 
       )}
@@ -304,6 +316,14 @@ function App() {
       {page === "support" && (
 
         <Support />
+
+      )}
+
+
+
+      {page === "status" && (
+
+        <CompressionStatus />
 
       )}
 
