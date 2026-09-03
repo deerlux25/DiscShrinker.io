@@ -71,9 +71,11 @@ app.post("/compress", upload.single("video"), (req, res) => {
       .videoBitrate(videoBitrate + "k")
       .audioBitrate("128k")
       .outputOptions([
-        "-preset medium",
+        "-preset veryfast",
+        "-threads 1",
         "-pix_fmt yuv420p",
-        "-movflags +faststart"
+        "-movflags +faststart",
+        "-vf scale='min(1280,iw)':-2"
       ])
       .format("mp4")
       .on("start", command => {
