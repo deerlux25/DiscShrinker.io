@@ -72,7 +72,7 @@ app.post("/compress", upload.single("video"), (req, res) => {
       .audioBitrate("128k")
       .outputOptions([
         "-preset veryfast",
-        "-threads 1",
+        "-threads 2",
         "-pix_fmt yuv420p",
         "-movflags +faststart",
         "-vf scale='min(1280,iw)':-2"
@@ -128,6 +128,8 @@ res.sendFile(
   });
 });
 
-app.listen(3001, () => {
-  console.log("Compression server running on port 3001");
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log("Compression server running on port " + PORT);
 });
