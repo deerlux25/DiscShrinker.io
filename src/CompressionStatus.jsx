@@ -6,7 +6,7 @@ function CompressionStatus() {
 
       <div className="status-title">
         <span className="status-eyebrow-page">LIVE MONITOR</span>
-        <h1>⚡ DiscShrink Status</h1>
+        <h1><span className="status-bolt">⚡</span> DiscShrink Status</h1>
         <p>Real-time status of the compressor and its services.</p>
       </div>
 

@@ -5,7 +5,7 @@
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 50px 30px 70px;
+  padding: 70px 30px 70px;
   box-sizing: border-box;
   text-align: center;
 }
@@ -36,6 +36,11 @@
   -webkit-text-fill-color: transparent;
   filter:
     drop-shadow(0 0 20px rgba(155,90,255,.45));
+}
+
+.status-bolt {
+  -webkit-text-fill-color: initial;
+  filter: none;
 }
 
 .status-title p {
