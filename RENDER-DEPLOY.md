@@ -53,3 +53,15 @@ The compressor supports:
 - `30,000 KB`
 
 The server keeps encoding headroom for MP4/container overhead and rejects a result that is still above the selected limit.
+
+## Support tickets & Discord notifications
+
+Submissions from the Support page's contact form are saved to `server/support-tickets.log` and each one gets a reference code (e.g. `DS-00001-8F3K`) shown to the user.
+
+To also get notified in Discord when a ticket comes in:
+
+1. In Discord, go to the channel you want tickets posted to → **Edit Channel → Integrations → Webhooks → New Webhook**.
+2. Copy the webhook URL.
+3. Set it as an environment variable on the **backend** (`discordshrink-api`) service in Render: `DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...`
+
+No webhook URL set = the contact form still works and tickets still get saved and reference codes issued; Discord posting is just skipped.
