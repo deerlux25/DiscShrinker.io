@@ -203,6 +203,9 @@ app.post("/compress", upload.single("video"), (req, res) => {
     if (err) {
       console.log(err);
       stats.failCount += 1;
+      if (fs.existsSync(input)) {
+        fs.unlinkSync(input);
+      }
       return res.status(500).send("Could not read video");
     }
 
@@ -281,6 +284,13 @@ res.sendFile(
   console.log("FFmpeg error:");
   console.log(error.message);
   stats.failCount += 1;
+
+  if (fs.existsSync(input)) {
+    fs.unlinkSync(input);
+  }
+  if (fs.existsSync(output)) {
+    fs.unlinkSync(output);
+  }
 
   res.status(500).send(
     `Video Compression failed. Reason: ${error.message}`
