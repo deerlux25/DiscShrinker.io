@@ -128,6 +128,9 @@ app.get("/stats", (req, res) => {
     avgCompressionSeconds: stats.successCount
       ? Math.round(stats.totalDurationMs / stats.successCount / 1000)
       : null,
+    activeCompressions,
+    queuedCompressions: compressionQueue.length,
+    maxConcurrentCompressions: MAX_CONCURRENT_COMPRESSIONS,
   });
 });
 
@@ -170,15 +173,170 @@ app.post("/contact", async (req, res) => {
   res.json({ success: true, ticketId: ticket.ticketId });
 });
 
-app.post("/compress", upload.single("video"), (req, res) => {
+// ---- Compression queue ----
+// Keep FFmpeg jobs under control on small Render instances.
+// Default: 1 compression at a time. Set MAX_CONCURRENT_COMPRESSIONS=2
+// when moving to a larger instance and testing two simultaneous jobs.
+const MAX_CONCURRENT_COMPRESSIONS = Math.max(
+  1,
+  parseInt(process.env.MAX_CONCURRENT_COMPRESSIONS, 10) || 1
+);
 
+const compressionQueue = [];
+const compressionJobs = new Map();
+let activeCompressions = 0;
+
+function getQueueSnapshot(job) {
+  const waitingIndex = compressionQueue.indexOf(job);
+  const total = activeCompressions + compressionQueue.length;
+  if (waitingIndex >= 0) {
+    return { position: activeCompressions + waitingIndex + 1, total };
+  }
+  if (job.status === "processing") {
+    return { position: Math.max(1, activeCompressions), total: Math.max(1, total) };
+  }
+  return { position: 0, total: Math.max(0, total) };
+}
+
+function makeCompressionJobId() {
+  return `job-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function processCompressionQueue() {
+  while (
+    activeCompressions < MAX_CONCURRENT_COMPRESSIONS &&
+    compressionQueue.length > 0
+  ) {
+    const job = compressionQueue.shift();
+    activeCompressions += 1;
+
+    console.log(
+      `Starting queued compression. Active: ${activeCompressions}/${MAX_CONCURRENT_COMPRESSIONS}. ` +
+      `Waiting: ${compressionQueue.length}`
+    );
+
+    runCompression(job)
+      .catch((error) => {
+        console.log("Unexpected compression queue error:", error.message);
+      })
+      .finally(() => {
+        activeCompressions -= 1;
+        console.log(
+          `Compression slot released. Active: ${activeCompressions}/${MAX_CONCURRENT_COMPRESSIONS}. ` +
+          `Waiting: ${compressionQueue.length}`
+        );
+        processCompressionQueue();
+      });
+  }
+}
+
+function runCompression(job) {
+  const { req, res, input, output, originalName, targetSizeKB } = job;
+  job.status = "processing";
+  job.startedAt = Date.now();
+
+  return new Promise((resolve) => {
+    job.compressionStartedAt = Date.now();
+
+    console.log(
+      "Compressing:",
+      req.file.originalname,
+      `| Queue wait complete | Target: ${targetSizeKB} KB`
+    );
+
+    ffmpeg.ffprobe(input, (err, metadata) => {
+      if (err) {
+        console.log(err);
+        stats.failCount += 1;
+
+        if (fs.existsSync(input)) {
+          fs.unlinkSync(input);
+        }
+
+        job.status = "failed";
+        job.error = "Could not read video";
+        resolve();
+        return;
+      }
+
+      const duration = metadata.format.duration;
+
+      if (!Number.isFinite(duration) || duration <= 0) {
+        stats.failCount += 1;
+
+        if (fs.existsSync(input)) {
+          fs.unlinkSync(input);
+        }
+
+        job.status = "failed";
+        job.error = "Could not determine video duration";
+        resolve();
+        return;
+      }
+
+      const totalBitrate = (targetSizeKB * 1024 * 8) / duration;
+      const audioBitrate = 128000;
+      const videoBitrate = Math.floor(totalBitrate - audioBitrate) / 1000;
+
+      // Keep the existing DiscordShrink compression settings.
+      ffmpeg(input)
+        .videoCodec("libx264")
+        .audioCodec("aac")
+        .videoBitrate(videoBitrate + "k")
+        .audioBitrate("128k")
+        .outputOptions([
+          "-preset veryfast",
+          "-threads 2",
+          "-pix_fmt yuv420p",
+          "-movflags +faststart",
+          "-vf scale='min(1280,iw)':-2"
+        ])
+        .format("mp4")
+        .on("start", (command) => {
+          console.log("FFmpeg:");
+          console.log(command);
+        })
+        .on("progress", (progress) => {
+          console.log(Math.round(progress.percent || 0) + "%");
+        })
+        .on("end", () => {
+          console.log("Compression complete");
+          stats.successCount += 1;
+          stats.totalDurationMs += Date.now() - job.startedAt;
+          job.status = "complete";
+
+          resolve();
+        })
+        .on("error", (error) => {
+          console.log("FFmpeg error:");
+          console.log(error.message);
+          stats.failCount += 1;
+
+          if (fs.existsSync(input)) {
+            fs.unlinkSync(input);
+          }
+
+          if (fs.existsSync(output)) {
+            fs.unlinkSync(output);
+          }
+
+          job.status = "failed";
+          job.error = `Video Compression failed. Reason: ${error.message}`;
+
+          resolve();
+        })
+        .save(output);
+    });
+  });
+}
+
+app.post("/compress", upload.single("video"), (req, res) => {
   console.log("Received upload request");
 
   if (!req.file) {
     return res.status(400).send("No video uploaded");
   }
 
-  const compressionStartedAt = Date.now();
   rolloverStatsIfNewDay();
   stats.totalCompressions += 1;
   stats.compressionsToday += 1;
@@ -188,123 +346,95 @@ app.post("/compress", upload.single("video"), (req, res) => {
   const originalName = req.file.originalname
     .replace(/\.[^/.]+$/, "");
 
-  const outputName = `${originalName}-compressed.mp4`;
+  const outputName = `${originalName}-compressed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`;
 
   const output = path.join(
-  __dirname,
-  "uploads",
-  outputName
-);
-
-  console.log("Compressing:", req.file.originalname);
-
-  ffmpeg.ffprobe(input, (err, metadata) => {
-
-    if (err) {
-      console.log(err);
-      stats.failCount += 1;
-      if (fs.existsSync(input)) {
-        fs.unlinkSync(input);
-      }
-      return res.status(500).send("Could not read video");
-    }
-
-    const duration = metadata.format.duration;
-
-    const requestedTargetKB = parseInt(req.body.targetSizeKB, 10);
-
-    const targetSizeKB =
-      Number.isFinite(requestedTargetKB) && requestedTargetKB > 0
-        ? Math.min(Math.max(requestedTargetKB, 1024), 512000) // clamp 1MB–500MB
-        : 20480; // fallback: 20 MB
-
-    console.log("Requested target size (KB):", targetSizeKB);
-
-    const totalBitrate =
-      (targetSizeKB * 1024 * 8) / duration;
-
-    const audioBitrate = 128000;
-
-    const videoBitrate =
-      Math.floor(totalBitrate - audioBitrate) / 1000;
-
-    console.log(
-      "Video bitrate:",
-      videoBitrate,
-      "kbps"
-    );
-
-    ffmpeg(input)
-      .videoCodec("libx264")
-      .audioCodec("aac")
-      .videoBitrate(videoBitrate + "k")
-      .audioBitrate("128k")
-      .outputOptions([
-        "-preset veryfast",
-        "-threads 2",
-        "-pix_fmt yuv420p",
-        "-movflags +faststart",
-        "-vf scale='min(1280,iw)':-2"
-      ])
-      .format("mp4")
-      .on("start", command => {
-        console.log("FFmpeg:");
-        console.log(command);
-      })
-      .on("progress", progress => {
-        console.log(
-          Math.round(progress.percent || 0) + "%"
-        );
-      })
-     .on("end", () => {
-  console.log("Compression complete");
-  stats.successCount += 1;
-  stats.totalDurationMs += Date.now() - compressionStartedAt;
-
-res.sendFile(
-  output,
-  {
-    headers: {
-      "Content-Type": "video/mp4",
-      "Content-Disposition": 'inline; filename="compressed-video.mp4"'
-    }
-  },
-  (err) => {
-    if (err) {
-      console.log("Send file error:");
-      console.log(err.message);
-    } else {
-      console.log("File sent successfully");
-    }
-
-    if (fs.existsSync(input)) {
-      fs.unlinkSync(input);
-    }
-
-    if (fs.existsSync(output)) {
-      fs.unlinkSync(output);
-               }
-    }
+    __dirname,
+    "uploads",
+    outputName
   );
-})
-      .on("error", error => {
-  console.log("FFmpeg error:");
-  console.log(error.message);
-  stats.failCount += 1;
 
-  if (fs.existsSync(input)) {
-    fs.unlinkSync(input);
-  }
-  if (fs.existsSync(output)) {
-    fs.unlinkSync(output);
-  }
+  const requestedTargetKB = parseInt(req.body.targetSizeKB, 10);
 
-  res.status(500).send(
-    `Video Compression failed. Reason: ${error.message}`
+  const targetSizeKB =
+    Number.isFinite(requestedTargetKB) && requestedTargetKB > 0
+      ? Math.min(Math.max(requestedTargetKB, 1024), 512000)
+      : 20480;
+
+  // Start the timer when the job actually begins, so queue waiting time
+  // does not make compression performance look slower than it is.
+  const job = {
+    id: makeCompressionJobId(),
+    req,
+    res,
+    input,
+    output,
+    originalName,
+    targetSizeKB,
+    status: "queued",
+    error: null,
+    startedAt: null,
+  };
+
+  compressionJobs.set(job.id, job);
+  compressionQueue.push(job);
+
+  const queueSnapshot = getQueueSnapshot(job);
+
+  console.log(
+    `Compression queued. Position: ${queueSnapshot.position}/${queueSnapshot.total}. ` +
+    `Active: ${activeCompressions}/${MAX_CONCURRENT_COMPRESSIONS}`
   );
-})
-.save(output);
+
+  res.status(202).json({
+    jobId: job.id,
+    status: job.status,
+    queuePosition: queueSnapshot.position,
+    queueTotal: queueSnapshot.total,
+    activeCompressions,
+    maxConcurrentCompressions: MAX_CONCURRENT_COMPRESSIONS,
   });
+
+  processCompressionQueue();
+});
+
+app.get("/compress/status/:jobId", (req, res) => {
+  const job = compressionJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Compression job not found" });
+
+  const queueSnapshot = getQueueSnapshot(job);
+  res.json({
+    jobId: job.id,
+    status: job.status,
+    queuePosition: queueSnapshot.position,
+    queueTotal: queueSnapshot.total,
+    activeCompressions,
+    maxConcurrentCompressions: MAX_CONCURRENT_COMPRESSIONS,
+    error: job.error,
+  });
+});
+
+app.get("/compress/download/:jobId", (req, res) => {
+  const job = compressionJobs.get(req.params.jobId);
+  if (!job || job.status !== "complete") {
+    return res.status(404).send("Compressed video is not ready");
+  }
+
+  res.sendFile(
+    job.output,
+    {
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Disposition": 'inline; filename="compressed-video.mp4"'
+      }
+    },
+    (sendErr) => {
+      if (sendErr) console.log("Send file error:", sendErr.message);
+      if (fs.existsSync(job.input)) fs.unlinkSync(job.input);
+      if (fs.existsSync(job.output)) fs.unlinkSync(job.output);
+      compressionJobs.delete(job.id);
+    }
+  );
 });
 
 const PORT = process.env.PORT || 3001;
