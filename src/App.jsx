@@ -19,6 +19,7 @@ function App() {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
   const [compressing, setCompressing] = useState(false);
+  const [queueInfo, setQueueInfo] = useState(null);
   const [targetSizeKB, setTargetSizeKB] = useState("20480");
   const [page, setPage] = useState("home");
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,44 +51,73 @@ function App() {
     }
 
     setCompressing(true);
-    setStatus("Uploading and compressing...");
+    setQueueInfo(null);
+    setStatus("Uploading video to the compression queue...");
 
     try {
       const formData = new FormData();
       formData.append("video", file);
       formData.append("targetSizeKB", targetSizeKB);
 
-      const response = await fetch(
-        `${SERVER_URL}/compress`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const response = await fetch(`${SERVER_URL}/compress`, {
+        method: "POST",
+        body: formData,
+      });
 
       if (!response.ok) {
         const errorMessage = await response.text();
         throw new Error(errorMessage);
       }
 
-      const blob = await response.blob();
+      const job = await response.json();
+      setQueueInfo({ position: job.queuePosition, total: job.queueTotal, status: job.status });
 
+      let completed = false;
+      while (!completed) {
+        const statusResponse = await fetch(`${SERVER_URL}/compress/status/${job.jobId}`);
+        if (!statusResponse.ok) throw new Error("Could not check compression queue status.");
+
+        const current = await statusResponse.json();
+        setQueueInfo({
+          position: current.queuePosition,
+          total: current.queueTotal,
+          status: current.status,
+        });
+
+        if (current.status === "failed") {
+          throw new Error(current.error || "Video compression failed.");
+        }
+
+        if (current.status === "complete") {
+          completed = true;
+          break;
+        }
+
+        if (current.status === "processing") {
+          setStatus("Compressing your video...");
+        } else {
+          setStatus("Waiting in the compression queue...");
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      const downloadResponse = await fetch(`${SERVER_URL}/compress/download/${job.jobId}`);
+      if (!downloadResponse.ok) throw new Error("Compression finished, but the video could not be downloaded.");
+
+      const blob = await downloadResponse.blob();
       const url = window.URL.createObjectURL(blob);
-
       const link = document.createElement("a");
       link.href = url;
       link.download = "compressed-video.mp4";
-
       document.body.appendChild(link);
       link.click();
       link.remove();
-
       window.URL.revokeObjectURL(url);
 
       setStatus("Compression complete!");
-    }
-
-    catch (error) {
+      setQueueInfo(null);
+    } catch (error) {
       console.log(error);
       setStatus(`Failed: ${error.message}`);
 
@@ -393,6 +423,24 @@ function App() {
                 ))}
               </select>
             </div>
+
+            {queueInfo && (
+              <div className={`queue-display ${queueInfo.status === "processing" ? "queue-processing" : ""}`}>
+                <div className="queue-display-icon">⚡</div>
+                <div className="queue-display-content">
+                  <strong>
+                    {queueInfo.status === "processing"
+                      ? "Now Compressing"
+                      : `Queue ${queueInfo.position} of ${queueInfo.total}`}
+                  </strong>
+                  <span>
+                    {queueInfo.status === "processing"
+                      ? "Your video is being compressed right now."
+                      : "Your video is waiting its turn."}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <button
               className="compress-button"
