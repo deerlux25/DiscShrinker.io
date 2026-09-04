@@ -1,0 +1,423 @@
+import { useRef, useState } from "react";
+import "./App.css";
+import FAQ from "./FAQ";
+import Support from "./Support";
+import CompressionStatus from "./CompressionStatus";
+import Legal from "./Legal";
+import { SERVER_URL } from "./config";
+import { SEARCH_INDEX } from "./searchIndex";
+
+const TARGET_OPTIONS = [
+  { value: "20480", label: "⚡ Discord Shrinker — 20 MB" },
+  { value: "19765", label: "19,765 KB" },
+  { value: "30000", label: "30,000 KB" },
+];
+
+function App() {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("");
+  const [compressing, setCompressing] = useState(false);
+  const [targetSizeKB, setTargetSizeKB] = useState("20480");
+  const [page, setPage] = useState("compressor");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const fileInputRef = useRef(null);
+
+  const searchResults =
+    searchQuery.trim().length === 0
+      ? []
+      : SEARCH_INDEX.filter((item) => {
+          const haystack = (item.title + " " + item.snippet + " " + item.keywords).toLowerCase();
+          return haystack.includes(searchQuery.trim().toLowerCase());
+        }).slice(0, 6);
+
+  function goToResult(result) {
+    setPage(result.page);
+    setSearchQuery("");
+    setSearchOpen(false);
+  }
+
+
+  async function compressVideo() {
+    if (!file) {
+      setStatus("Please select a video first.");
+      return;
+    }
+
+    setCompressing(true);
+    setStatus("Uploading and compressing...");
+
+    try {
+      const formData = new FormData();
+      formData.append("video", file);
+      formData.append("targetSizeKB", targetSizeKB);
+
+      const response = await fetch(
+        `${SERVER_URL}/compress`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorMessage = await response.text();
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "compressed-video.mp4";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+
+      setStatus("Compression complete!");
+    }
+
+    catch (error) {
+      console.log(error);
+      setStatus(`Failed: ${error.message}`);
+
+      try {
+        window.localStorage.setItem(
+          "discshrink_last_error",
+          JSON.stringify({
+            message: error.message,
+            fileName: file?.name || null,
+            fileType: file?.type || null,
+            fileSizeMB: file ? (file.size / (1024 * 1024)).toFixed(1) : null,
+            targetSizeKB,
+            time: new Date().toISOString(),
+          })
+        );
+      } catch (storageError) {
+        console.log("Could not save diagnostics:", storageError);
+      }
+    }
+
+    setCompressing(false);
+  }
+
+
+  function chooseFile() {
+    fileInputRef.current.click();
+  }
+
+
+  function handleDrop(e) {
+    e.preventDefault();
+
+    const droppedFile = e.dataTransfer.files[0];
+
+    if (droppedFile) {
+      setFile(droppedFile);
+      setStatus(`Selected: ${droppedFile.name}`);
+    }
+  }
+
+
+
+  return (
+    <div className="app">
+
+
+      <nav className="navbar">
+
+        <div className="logo">
+          <span className="logo-bolt">⚡</span><span className="logo-text">DiscShrink</span>
+        </div>
+
+
+        <div className="nav-search">
+          <input
+            type="text"
+            placeholder="Search the site..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchOpen(true);
+            }}
+            onFocus={() => setSearchOpen(true)}
+            onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+          />
+
+          {searchOpen && searchQuery.trim().length > 0 && (
+            <div className="nav-search-results">
+              {searchResults.length === 0 ? (
+                <div className="nav-search-empty">No results found.</div>
+              ) : (
+                searchResults.map((result, i) => (
+                  <div
+                    key={i}
+                    className="nav-search-item"
+                    onMouseDown={() => goToResult(result)}
+                  >
+                    <div className="nav-search-item-title">{result.title}</div>
+                    <div className="nav-search-item-snippet">{result.snippet}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+
+        <div className="nav-links">
+
+
+          <span
+            className={
+              page === "compressor"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setPage("compressor")
+            }
+          >
+            Compressor
+          </span>
+
+
+
+          <span
+            className={
+              page === "faq"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setPage("faq")
+            }
+          >
+            FAQ
+          </span>
+
+
+
+          <span
+            className={
+              page === "support"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setPage("support")
+            }
+          >
+            Support
+          </span>
+
+
+
+          <span
+            className={
+              page === "status"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setPage("status")
+            }
+          >
+            Status
+          </span>
+
+
+        </div>
+
+      </nav>
+
+
+
+      {page === "compressor" && (
+
+        <>
+
+          <section className="hero">
+
+            <h1>
+              Free Discord
+              <br />
+              Video Compressor
+            </h1>
+
+          </section>
+
+
+          <section className="compress-card">
+
+            <div
+              className="drop-zone"
+
+              onClick={chooseFile}
+
+              onDragOver={(e) =>
+                e.preventDefault()
+              }
+
+              onDrop={handleDrop}
+
+            >
+
+              <h2>
+                Drag & drop your video here
+              </h2>
+
+              <p>
+                or click to browse
+              </p>
+
+
+              <button
+                type="button"
+                onClick={(e) => {
+
+                  e.stopPropagation();
+
+                  chooseFile();
+
+                }}
+              >
+                Choose Video
+              </button>
+
+
+              <input
+                ref={fileInputRef}
+                hidden
+                type="file"
+                accept="video/*,.mov,.mp4"
+                onChange={(e) => {
+
+                  const selected =
+                    e.target.files[0];
+
+                  if (selected) {
+
+                    setFile(selected);
+
+                    setStatus(
+                      `Selected: ${selected.name}`
+                    );
+
+                  }
+
+                }}
+              />
+
+
+              {file && (
+
+                <p>
+                  {file.name}
+                </p>
+
+              )}
+
+            </div>
+
+
+            <div className="target-size-wrap">
+              <label htmlFor="target-size">Target file size</label>
+              <select
+                id="target-size"
+                value={targetSizeKB}
+                onChange={(e) => setTargetSizeKB(e.target.value)}
+                disabled={compressing}
+              >
+                {TARGET_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              className="compress-button"
+              onClick={compressVideo}
+              disabled={compressing}
+            >
+
+              {
+                compressing
+                  ? "Compressing..."
+                  : "Compress Video"
+              }
+
+            </button>
+
+
+            <p>
+              {status}
+            </p>
+
+
+          </section>
+
+        </>
+
+      )}
+
+{page === "faq" && (
+
+        <FAQ />
+
+      )}
+
+
+
+      {page === "support" && (
+
+        <Support goToPage={setPage} />
+
+      )}
+
+
+
+      {page === "status" && (
+
+        <CompressionStatus />
+
+      )}
+
+
+      {page === "privacy" && (
+
+        <Legal section="privacy" />
+
+      )}
+
+
+      {page === "terms" && (
+
+        <Legal section="terms" />
+
+      )}
+
+
+      <footer className="site-footer">
+        <div className="site-footer-links">
+          <span onClick={() => setPage("privacy")}>Privacy Policy</span>
+          <span className="site-footer-dot">•</span>
+          <span onClick={() => setPage("terms")}>Terms of Service</span>
+        </div>
+        © {new Date().getFullYear()} DiscShrink. All rights reserved.
+      </footer>
+
+    </div>
+  );
+}
+
+
+export default App;
