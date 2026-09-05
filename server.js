@@ -65,7 +65,12 @@ function makeTicketId() {
 // ---- Discord webhook notifications (optional - only fires if DISCORD_WEBHOOK_URL is set) ----
 async function notifyDiscord(ticket) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) return; // not configured - silently skip
+  if (!webhookUrl) {
+    console.log(
+      "Discord webhook skipped: DISCORD_WEBHOOK_URL is not set for this service."
+    );
+    return;
+  }
 
   const lastError = ticket.diagnostics?.lastError;
 
@@ -88,11 +93,18 @@ async function notifyDiscord(ticket) {
   }
 
   try {
-    await fetch(webhookUrl, {
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ embeds: [embed] }),
     });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "(no body)");
+      console.log(
+        `Discord webhook rejected the request: ${response.status} ${response.statusText} — ${body}`
+      );
+    }
   } catch (err) {
     // Never let a Discord hiccup fail the ticket submission.
     console.log("Discord webhook failed:", err.message);
