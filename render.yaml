@@ -21,3 +21,7 @@ services:
           type: web
           name: discordshrink-api
           property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
