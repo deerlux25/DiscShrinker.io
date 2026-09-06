@@ -931,6 +931,16 @@ body {
   background-attachment: fixed;
 }
 
+/* Dark/Light themes override the image above with a solid color. This
+   selector is intentionally more specific than the bare "body" rule so it
+   wins regardless of where either rule sits in the file. */
+[data-theme="dark"] body,
+[data-theme="light"] body {
+  background-image: none;
+  background-color: var(--page-bg);
+  background-attachment: scroll;
+}
+
 .electric-title {
   width: min(900px, 92vw);
   display: block;
