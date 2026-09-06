@@ -41,10 +41,17 @@ body {
   max-width: 1100px;
 
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 14px;
 
   padding: 25px 30px;
+}
+
+.navbar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
 }
 
 
@@ -98,7 +105,9 @@ body {
 
 .nav-links {
   display: flex;
-  gap: 35px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px 35px;
 
   color: var(--text-secondary);
 
@@ -210,7 +219,7 @@ body {
   top: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 999;
+  z-index: 100;
 
   min-width: 200px;
   padding: 8px;
@@ -220,7 +229,7 @@ body {
 
   border-radius: 16px;
   border: 1px solid rgba(var(--fg-rgb), 0.12);
-  background: #171429;
+  background: var(--panel-bg);
   box-shadow:
     0 18px 45px rgba(20, 5, 55, 0.5),
     0 0 30px rgba(130, 75, 255, 0.15);
@@ -270,9 +279,10 @@ body {
 
 .nav-search {
   position: relative;
-  flex: 1;
-  max-width: 340px;
-  margin: 0 20px;
+  z-index: 10;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
 }
 
 .nav-search input {
@@ -280,7 +290,7 @@ body {
   padding: 10px 16px;
   border-radius: 999px;
   border: 1px solid rgba(var(--fg-rgb), 0.14);
-  background: rgba(20, 18, 42, 0.6);
+  background: rgba(var(--fg-rgb), 0.06);
   color: rgb(var(--fg-rgb));
   font: inherit;
   font-size: 14px;
@@ -289,12 +299,12 @@ body {
 }
 
 .nav-search input::placeholder {
-  color: #8d8b9d;
+  color: var(--text-secondary);
 }
 
 .nav-search input:focus {
   border-color: rgba(170, 120, 255, 0.6);
-  background: rgba(20, 18, 42, 0.85);
+  background: rgba(var(--fg-rgb), 0.09);
   box-shadow: 0 0 0 3px rgba(140, 90, 255, 0.15);
 }
 
@@ -303,11 +313,11 @@ body {
   top: calc(100% + 8px);
   left: 0;
   right: 0;
-  z-index: 999;
+  z-index: 10;
 
   border-radius: 16px;
   border: 1px solid rgba(var(--fg-rgb), 0.12);
-  background: rgba(15, 13, 32, 0.96);
+  background: var(--panel-bg);
   box-shadow:
     0 18px 45px rgba(20, 5, 55, 0.5),
     0 0 30px rgba(130, 75, 255, 0.15);
@@ -1007,15 +1017,14 @@ body {
 
 
   .navbar {
-
-    flex-direction: column;
-
     gap: 15px;
-
     padding: 15px;
-
   }
 
+  .navbar-top {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
 
   .nav-links {
 
@@ -1030,7 +1039,6 @@ body {
     max-width: 100%;
     width: 100%;
     margin: 0;
-    order: 3;
   }
 
 

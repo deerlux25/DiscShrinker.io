@@ -16,6 +16,7 @@
 
   --text-heading: #f2ecff;
   --text-secondary: #aaa9bd;
+  --panel-bg: #171429;
 }
 
 [data-theme="dark"] {
@@ -27,6 +28,7 @@
 
   --text-heading: #f2ecff;
   --text-secondary: #aaa9bd;
+  --panel-bg: #17161f;
 }
 
 [data-theme="light"] {
@@ -42,4 +44,5 @@
 
   --text-heading: #1a142e;
   --text-secondary: #5b5866;
+  --panel-bg: #ffffff;
 }

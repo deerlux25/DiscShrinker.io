@@ -312,9 +312,186 @@ function App() {
   return (
     <div className="app">
       <nav className="navbar">
-        <Link className="logo" to="/">
-          <span className="logo-bolt">⚡</span><span className="logo-text">DiscShrink</span>
-        </Link>
+        <div className="navbar-top">
+          <Link className="logo" to="/">
+            <span className="logo-bolt">⚡</span><span className="logo-text">DiscShrink</span>
+          </Link>
+
+          <div className="nav-links">
+            <div className="nav-dropdown">
+              <button
+                className={toolsActive ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
+                onClick={() => setToolsOpen((open) => !open)}
+                onBlur={() => setTimeout(() => setToolsOpen(false), 150)}
+              >
+                Tools <span className="nav-caret">▾</span>
+              </button>
+
+              {toolsOpen && (
+                <div className="nav-dropdown-menu">
+                  <span
+                    className={location.pathname === "/compressor" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/compressor");
+                      setToolsOpen(false);
+                    }}
+                  >
+                    Video Compressor
+                  </span>
+
+                  <span
+                    className={location.pathname === "/gif" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/gif");
+                      setToolsOpen(false);
+                    }}
+                  >
+                    Video to GIF <span className="nav-soon-tag">Soon</span>
+                  </span>
+
+                  <span
+                    className={location.pathname === "/audio" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/audio");
+                      setToolsOpen(false);
+                    }}
+                  >
+                    Audio Extractor <span className="nav-soon-tag">Soon</span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="nav-dropdown">
+              <button
+                className={helpActive ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
+                onClick={() => setHelpOpen((open) => !open)}
+                onBlur={() => setTimeout(() => setHelpOpen(false), 150)}
+              >
+                Help <span className="nav-caret">▾</span>
+              </button>
+
+              {helpOpen && (
+                <div className="nav-dropdown-menu">
+                  <span
+                    className={location.pathname === "/faq" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/faq");
+                      setHelpOpen(false);
+                    }}
+                  >
+                    FAQ
+                  </span>
+
+                  <span
+                    className={location.pathname === "/support" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/support");
+                      setHelpOpen(false);
+                    }}
+                  >
+                    Support
+                  </span>
+
+                  <span
+                    className={location.pathname === "/status" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/status");
+                      setHelpOpen(false);
+                    }}
+                  >
+                    Status
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <Link
+              className={location.pathname.startsWith("/updates") ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
+              to="/updates"
+            >
+              DiscShrink Updates
+            </Link>
+
+            <div className="theme-toggle" role="group" aria-label="Theme">
+              <button
+                type="button"
+                className={theme === "original" ? "theme-toggle-btn active" : "theme-toggle-btn"}
+                onClick={() => handleSetTheme("original")}
+                title="Original theme"
+                aria-pressed={theme === "original"}
+              >
+                ⚡
+              </button>
+              <button
+                type="button"
+                className={theme === "light" ? "theme-toggle-btn active" : "theme-toggle-btn"}
+                onClick={() => handleSetTheme("light")}
+                title="Light theme"
+                aria-pressed={theme === "light"}
+              >
+                ☀️
+              </button>
+              <button
+                type="button"
+                className={theme === "dark" ? "theme-toggle-btn active" : "theme-toggle-btn"}
+                onClick={() => handleSetTheme("dark")}
+                title="Dark theme"
+                aria-pressed={theme === "dark"}
+              >
+                🌙
+              </button>
+            </div>
+
+            {isSupabaseConfigured && (
+              user ? (
+                <div className="nav-dropdown">
+                  <button
+                    className={location.pathname === "/history" ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
+                    onClick={() => setAccountOpen((open) => !open)}
+                    onBlur={() => setTimeout(() => setAccountOpen(false), 150)}
+                  >
+                    {user.user_metadata?.avatar_url && (
+                      <img
+                        className="nav-account-avatar"
+                        src={user.user_metadata.avatar_url}
+                        alt=""
+                      />
+                    )}
+                    {user.user_metadata?.full_name || user.user_metadata?.user_name || "Account"}{" "}
+                    <span className="nav-caret">▾</span>
+                  </button>
+
+                  {accountOpen && (
+                    <div className="nav-dropdown-menu">
+                      <span
+                        className={location.pathname === "/history" ? "active" : ""}
+                        onMouseDown={() => {
+                          navigate("/history");
+                          setAccountOpen(false);
+                        }}
+                      >
+                        Compression History
+                      </span>
+                      <span
+                        onMouseDown={() => {
+                          signOut();
+                          setAccountOpen(false);
+                        }}
+                      >
+                        Sign Out
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button className="nav-dropdown-btn nav-signin-btn" onClick={signInWithDiscord}>
+                  Sign in with Discord
+                </button>
+              )
+            )}
+          </div>
+        </div>
 
         <div className="nav-search">
           <input
@@ -346,181 +523,6 @@ function App() {
                 ))
               )}
             </div>
-          )}
-        </div>
-
-        <div className="nav-links">
-          <div className="nav-dropdown">
-            <button
-              className={toolsActive ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
-              onClick={() => setToolsOpen((open) => !open)}
-              onBlur={() => setTimeout(() => setToolsOpen(false), 150)}
-            >
-              Tools <span className="nav-caret">▾</span>
-            </button>
-
-            {toolsOpen && (
-              <div className="nav-dropdown-menu">
-                <span
-                  className={location.pathname === "/compressor" ? "active" : ""}
-                  onMouseDown={() => {
-                    navigate("/compressor");
-                    setToolsOpen(false);
-                  }}
-                >
-                  Video Compressor
-                </span>
-
-                <span
-                  className={location.pathname === "/gif" ? "active" : ""}
-                  onMouseDown={() => {
-                    navigate("/gif");
-                    setToolsOpen(false);
-                  }}
-                >
-                  Video to GIF <span className="nav-soon-tag">Soon</span>
-                </span>
-
-                <span
-                  className={location.pathname === "/audio" ? "active" : ""}
-                  onMouseDown={() => {
-                    navigate("/audio");
-                    setToolsOpen(false);
-                  }}
-                >
-                  Audio Extractor <span className="nav-soon-tag">Soon</span>
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="nav-dropdown">
-            <button
-              className={helpActive ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
-              onClick={() => setHelpOpen((open) => !open)}
-              onBlur={() => setTimeout(() => setHelpOpen(false), 150)}
-            >
-              Help <span className="nav-caret">▾</span>
-            </button>
-
-            {helpOpen && (
-              <div className="nav-dropdown-menu">
-                <span
-                  className={location.pathname === "/faq" ? "active" : ""}
-                  onMouseDown={() => {
-                    navigate("/faq");
-                    setHelpOpen(false);
-                  }}
-                >
-                  FAQ
-                </span>
-
-                <span
-                  className={location.pathname === "/support" ? "active" : ""}
-                  onMouseDown={() => {
-                    navigate("/support");
-                    setHelpOpen(false);
-                  }}
-                >
-                  Support
-                </span>
-
-                <span
-                  className={location.pathname === "/status" ? "active" : ""}
-                  onMouseDown={() => {
-                    navigate("/status");
-                    setHelpOpen(false);
-                  }}
-                >
-                  Status
-                </span>
-              </div>
-            )}
-          </div>
-
-          <Link
-            className={location.pathname.startsWith("/updates") ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
-            to="/updates"
-          >
-            DiscShrink Updates
-          </Link>
-
-          <div className="theme-toggle" role="group" aria-label="Theme">
-            <button
-              type="button"
-              className={theme === "original" ? "theme-toggle-btn active" : "theme-toggle-btn"}
-              onClick={() => handleSetTheme("original")}
-              title="Original theme"
-              aria-pressed={theme === "original"}
-            >
-              ⚡
-            </button>
-            <button
-              type="button"
-              className={theme === "light" ? "theme-toggle-btn active" : "theme-toggle-btn"}
-              onClick={() => handleSetTheme("light")}
-              title="Light theme"
-              aria-pressed={theme === "light"}
-            >
-              ☀️
-            </button>
-            <button
-              type="button"
-              className={theme === "dark" ? "theme-toggle-btn active" : "theme-toggle-btn"}
-              onClick={() => handleSetTheme("dark")}
-              title="Dark theme"
-              aria-pressed={theme === "dark"}
-            >
-              🌙
-            </button>
-          </div>
-
-          {isSupabaseConfigured && (
-            user ? (
-              <div className="nav-dropdown">
-                <button
-                  className={location.pathname === "/history" ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
-                  onClick={() => setAccountOpen((open) => !open)}
-                  onBlur={() => setTimeout(() => setAccountOpen(false), 150)}
-                >
-                  {user.user_metadata?.avatar_url && (
-                    <img
-                      className="nav-account-avatar"
-                      src={user.user_metadata.avatar_url}
-                      alt=""
-                    />
-                  )}
-                  {user.user_metadata?.full_name || user.user_metadata?.user_name || "Account"}{" "}
-                  <span className="nav-caret">▾</span>
-                </button>
-
-                {accountOpen && (
-                  <div className="nav-dropdown-menu">
-                    <span
-                      className={location.pathname === "/history" ? "active" : ""}
-                      onMouseDown={() => {
-                        navigate("/history");
-                        setAccountOpen(false);
-                      }}
-                    >
-                      Compression History
-                    </span>
-                    <span
-                      onMouseDown={() => {
-                        signOut();
-                        setAccountOpen(false);
-                      }}
-                    >
-                      Sign Out
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button className="nav-dropdown-btn nav-signin-btn" onClick={signInWithDiscord}>
-                Sign in with Discord
-              </button>
-            )
           )}
         </div>
       </nav>
