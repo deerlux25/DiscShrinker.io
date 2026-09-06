@@ -18,8 +18,22 @@ function PrivacyContent() {
         through FFmpeg, and the compressed result is sent back to you. Both
         the original file and the compressed copy are deleted from our
         server automatically once the job finishes — whether it succeeds or
-        fails. We don't view, share, sell, or use your videos for any
-        purpose other than compressing and returning them to you.
+        fails, and whether or not you're signed in. We don't view, share,
+        sell, or use your videos for any purpose other than compressing and
+        returning them to you.
+      </p>
+
+      <h2>Accounts &amp; compression history (optional)</h2>
+      <p>
+        Signing in is never required to use DiscShrink. If you choose to
+        sign in with Discord, we keep a lightweight record of your past
+        compressions — filename, file sizes, target size, and when it
+        happened — so you have a history to look back on. We do not store
+        the video files themselves; those are still deleted immediately as
+        described above. We also store basic account preferences (like
+        your chosen theme and default target size) so they follow you
+        across devices. Signing in uses Discord's own login screen; we
+        never see or store your Discord password.
       </p>
 
       <h2>Contact / support form</h2>

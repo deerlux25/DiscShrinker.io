@@ -1,0 +1,115 @@
+/* ===== Compression History ===== */
+
+.history-page {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 50px 30px 90px;
+  box-sizing: border-box;
+}
+
+.history-title {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.history-eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: rgba(210, 194, 255, 0.75);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.history-title h1 {
+  margin: 0;
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 1000;
+  letter-spacing: -1px;
+  color: var(--text-heading);
+}
+
+.history-title p {
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.history-signin-btn {
+  display: block;
+  margin: 0 auto;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 800;
+  color: white;
+
+  background: linear-gradient(90deg, #7d4dff, #4c2cff);
+}
+
+.history-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.history-row {
+  padding: 20px 22px;
+
+  border: 1px solid rgba(var(--fg-rgb), 0.12);
+  border-radius: 18px;
+  background: rgba(var(--fg-rgb), 0.045);
+}
+
+.history-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-row-title {
+  color: rgb(var(--fg-rgb));
+  font-size: 15px;
+}
+
+.history-status {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.history-status-complete {
+  color: rgba(97, 255, 154, 0.95);
+  background: rgba(97, 255, 154, 0.12);
+  border: 1px solid rgba(97, 255, 154, 0.3);
+}
+
+.history-status-failed {
+  color: rgba(255, 107, 107, 0.95);
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.history-row-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
