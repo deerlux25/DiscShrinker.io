@@ -1,0 +1,45 @@
+/* =========================================================================
+   Theme system — three themes, one set of variables.
+   Everything else (buttons, glow shadows, fonts, layout) stays exactly as
+   designed; only background and foreground/surface tint change per theme.
+   ========================================================================= */
+
+:root {
+  /* ---- Original (default) ---- */
+  --fg-rgb: 255, 255, 255;
+
+  --page-bg:
+    radial-gradient(circle at 50% -10%, rgba(155, 90, 255, .55), transparent 35%),
+    radial-gradient(circle at 10% 40%, rgba(80, 60, 255, .35), transparent 30%),
+    radial-gradient(circle at 90% 70%, rgba(150, 70, 255, .25), transparent 35%),
+    linear-gradient(180deg, #17122c, #070812);
+
+  --text-heading: #f2ecff;
+  --text-secondary: #aaa9bd;
+}
+
+[data-theme="dark"] {
+  /* Same readable text/surfaces as Original, calmer flat background —
+     no loud purple blooms. */
+  --fg-rgb: 255, 255, 255;
+
+  --page-bg: linear-gradient(180deg, #16151d, #0a0a0f);
+
+  --text-heading: #f2ecff;
+  --text-secondary: #aaa9bd;
+}
+
+[data-theme="light"] {
+  /* Inverts the foreground tint from white to a deep on-brand purple-black,
+     which automatically flips every rgba(var(--fg-rgb), X) usage site-wide —
+     card surfaces, borders, and body text all correctly re-tint together. */
+  --fg-rgb: 26, 20, 46;
+
+  --page-bg:
+    radial-gradient(circle at 50% -10%, rgba(155, 90, 255, .10), transparent 35%),
+    radial-gradient(circle at 90% 70%, rgba(150, 70, 255, .06), transparent 35%),
+    linear-gradient(180deg, #ffffff, #f4f2fa);
+
+  --text-heading: #1a142e;
+  --text-secondary: #5b5866;
+}
