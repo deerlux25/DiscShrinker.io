@@ -5,15 +5,54 @@ import { SERVER_URL } from "./config";
 const POLL_INTERVAL_MS = 15000;
 const UPTIME_HISTORY_LENGTH = 30;
 
-// Manually curated - update this list when something notable happens.
-// Newest first.
-const INCIDENT_LOG = [
-  {
-    date: "No incidents reported",
-    detail: "Everything's running smoothly. Check back here if something ever breaks.",
-    resolved: true,
-  },
-];
+function formatDuration(ms) {
+  const totalMinutes = Math.max(1, Math.round(ms / 60000));
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+function formatTimestamp(iso) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function useIncidents() {
+  const [incidents, setIncidents] = useState(null); // null = loading
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchIncidents() {
+      try {
+        const res = await fetch(`${SERVER_URL}/incidents`);
+        if (!res.ok) throw new Error("Bad response");
+        const data = await res.json();
+        if (!cancelled) {
+          setIncidents(data);
+          setError(false);
+        }
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    }
+
+    fetchIncidents();
+    const id = setInterval(fetchIncidents, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  return { incidents, error };
+}
 
 function useHealthPolling() {
   const [health, setHealth] = useState(null); // null = not loaded yet
@@ -74,6 +113,7 @@ function StatusDot({ state }) {
 
 function CompressionStatus() {
   const { health, stats, latencyMs, checking, history } = useHealthPolling();
+  const { incidents, error: incidentsError } = useIncidents();
 
   const serverState = health === null ? "pending" : health.ok ? "up" : "down";
   const ffmpegState = health === null ? "pending" : health.ffmpeg ? "up" : "down";
@@ -205,15 +245,43 @@ function CompressionStatus() {
       <div className="status-incidents">
         <h3>Incident History</h3>
         <div className="status-incidents-list">
-          {INCIDENT_LOG.map((incident, i) => (
-            <div key={i} className="status-incident-item">
-              <span className={`status-incident-dot ${incident.resolved ? "" : "status-incident-active"}`} />
-              <div>
-                <div className="status-incident-date">{incident.date}</div>
-                <div className="status-incident-detail">{incident.detail}</div>
+          {incidents === null && !incidentsError && (
+            <p className="status-incidents-empty">Loading incident history…</p>
+          )}
+
+          {incidentsError && (
+            <p className="status-incidents-empty">
+              Couldn't load incident history right now — try again shortly.
+            </p>
+          )}
+
+          {incidents !== null && incidents.length === 0 && (
+            <p className="status-incidents-empty">
+              No incidents reported. Everything's running smoothly.
+            </p>
+          )}
+
+          {incidents !== null &&
+            incidents.map((incident) => (
+              <div key={incident.id} className="status-incident-item">
+                <span className={`status-incident-dot ${incident.resolved ? "" : "status-incident-active"}`} />
+                <div className="status-incident-body">
+                  <div className="status-incident-header">
+                    <strong>{incident.title}</strong>
+                    <span className="status-incident-service">{incident.service}</span>
+                  </div>
+                  <div className="status-incident-times">
+                    <span>Started: {formatTimestamp(incident.startedAt)}</span>
+                    <span>
+                      {incident.resolved
+                        ? `Resolved: ${formatTimestamp(incident.resolvedAt)}`
+                        : "Ongoing"}
+                    </span>
+                    <span>Duration: {formatDuration(incident.durationMs)}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
     </section>
