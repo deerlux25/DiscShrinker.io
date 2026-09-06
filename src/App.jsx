@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import "./App.css";
 import FAQ from "./FAQ";
@@ -9,6 +9,16 @@ import ComingSoon from "./ComingSoon";
 import Home from "./Home";
 import UpdatesArchive from "./UpdatesArchive";
 import UpdateDetail from "./UpdateDetail";
+import History from "./History";
+import { useTheme } from "./useTheme";
+import { useAuth } from "./useAuth";
+import { supabase } from "./supabaseClient";
+import {
+  getDefaultTargetSizeKB,
+  setDefaultTargetSizeKB,
+  fetchRemotePreferences,
+  upsertRemotePreferences,
+} from "./preferencesSync";
 import { SERVER_URL } from "./config";
 import { SEARCH_INDEX } from "./searchIndex";
 
@@ -23,9 +33,18 @@ function Compressor() {
   const [status, setStatus] = useState("");
   const [compressing, setCompressing] = useState(false);
   const [queueInfo, setQueueInfo] = useState(null);
-  const [targetSizeKB, setTargetSizeKB] = useState("20480");
+  const [targetSizeKB, setTargetSizeKB] = useState(getDefaultTargetSizeKB);
+  const { user } = useAuth();
 
   const fileInputRef = useRef(null);
+
+  function handleTargetSizeChange(value) {
+    setTargetSizeKB(value);
+    setDefaultTargetSizeKB(value);
+    if (user) {
+      upsertRemotePreferences(user, { default_target_size_kb: parseInt(value, 10) });
+    }
+  }
 
   async function compressVideo() {
     if (!file) {
@@ -42,8 +61,12 @@ function Compressor() {
       formData.append("video", file);
       formData.append("targetSizeKB", targetSizeKB);
 
+      const sessionResult = user ? await supabase.auth.getSession() : null;
+      const accessToken = sessionResult?.data?.session?.access_token;
+
       const response = await fetch(`${SERVER_URL}/compress`, {
         method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: formData,
       });
 
@@ -192,7 +215,7 @@ function Compressor() {
           <select
             id="target-size"
             value={targetSizeKB}
-            onChange={(e) => setTargetSizeKB(e.target.value)}
+            onChange={(e) => handleTargetSizeChange(e.target.value)}
             disabled={compressing}
           >
             {TARGET_OPTIONS.map((option) => (
@@ -239,6 +262,35 @@ function App() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, setTheme } = useTheme();
+  const { user, signInWithDiscord, signOut, isSupabaseConfigured } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
+
+  function handleSetTheme(next) {
+    setTheme(next);
+    if (user) upsertRemotePreferences(user, { theme: next });
+  }
+
+  // On sign-in, pull this account's saved preferences (if any) so the
+  // theme and default target size follow them to this device too.
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+
+    fetchRemotePreferences(user).then((prefs) => {
+      if (cancelled || !prefs) return;
+      if (prefs.theme) setTheme(prefs.theme);
+      if (prefs.default_target_size_kb) {
+        setDefaultTargetSizeKB(prefs.default_target_size_kb);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const searchResults =
     searchQuery.trim().length === 0
@@ -392,6 +444,84 @@ function App() {
           >
             DiscShrink Updates
           </Link>
+
+          <div className="theme-toggle" role="group" aria-label="Theme">
+            <button
+              type="button"
+              className={theme === "original" ? "theme-toggle-btn active" : "theme-toggle-btn"}
+              onClick={() => handleSetTheme("original")}
+              title="Original theme"
+              aria-pressed={theme === "original"}
+            >
+              ⚡
+            </button>
+            <button
+              type="button"
+              className={theme === "light" ? "theme-toggle-btn active" : "theme-toggle-btn"}
+              onClick={() => handleSetTheme("light")}
+              title="Light theme"
+              aria-pressed={theme === "light"}
+            >
+              ☀️
+            </button>
+            <button
+              type="button"
+              className={theme === "dark" ? "theme-toggle-btn active" : "theme-toggle-btn"}
+              onClick={() => handleSetTheme("dark")}
+              title="Dark theme"
+              aria-pressed={theme === "dark"}
+            >
+              🌙
+            </button>
+          </div>
+
+          {isSupabaseConfigured && (
+            user ? (
+              <div className="nav-dropdown">
+                <button
+                  className={location.pathname === "/history" ? "nav-dropdown-btn active" : "nav-dropdown-btn"}
+                  onClick={() => setAccountOpen((open) => !open)}
+                  onBlur={() => setTimeout(() => setAccountOpen(false), 150)}
+                >
+                  {user.user_metadata?.avatar_url && (
+                    <img
+                      className="nav-account-avatar"
+                      src={user.user_metadata.avatar_url}
+                      alt=""
+                    />
+                  )}
+                  {user.user_metadata?.full_name || user.user_metadata?.user_name || "Account"}{" "}
+                  <span className="nav-caret">▾</span>
+                </button>
+
+                {accountOpen && (
+                  <div className="nav-dropdown-menu">
+                    <span
+                      className={location.pathname === "/history" ? "active" : ""}
+                      onMouseDown={() => {
+                        navigate("/history");
+                        setAccountOpen(false);
+                      }}
+                    >
+                      Compression History
+                    </span>
+                    <span
+                      onMouseDown={() => {
+                        signOut();
+                        setAccountOpen(false);
+                      }}
+                    >
+                      Sign Out
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button className="nav-dropdown-btn nav-signin-btn" onClick={signInWithDiscord}>
+                Sign in with Discord
+              </button>
+            )
+          )}
         </div>
       </nav>
 
@@ -430,6 +560,7 @@ function App() {
         <Route path="/terms" element={<Legal section="terms" />} />
         <Route path="/updates" element={<UpdatesArchive />} />
         <Route path="/updates/:slug" element={<UpdateDetail />} />
+        <Route path="/history" element={<History />} />
         <Route path="*" element={<Home goToPage={(path) => navigate(`/${path === "home" ? "" : path}`)} />} />
       </Routes>
 
