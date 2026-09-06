@@ -1,0 +1,230 @@
+/* ===== Updates Pages (Archive + Detail) ===== */
+
+.updates-page {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 50px 30px 90px;
+  box-sizing: border-box;
+}
+
+.updates-title {
+  text-align: center;
+  margin-bottom: 45px;
+}
+
+.updates-eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: rgba(210, 194, 255, 0.75);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.updates-title h1 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 44px);
+  font-weight: 1000;
+  letter-spacing: -1px;
+  color: #f2ecff;
+  filter: drop-shadow(0 0 25px rgba(155, 90, 255, 0.5));
+}
+
+.updates-title p {
+  margin: 14px 0 0;
+  color: #aaa9bd;
+  font-size: 16px;
+}
+
+.updates-back-link {
+  display: inline-block;
+  margin-bottom: 26px;
+  color: #cabaff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.updates-back-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- Shared bits ---- */
+
+.updates-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+
+  color: rgba(216, 200, 255, 0.95);
+  background: rgba(150, 90, 255, 0.14);
+  border: 1px solid rgba(150, 90, 255, 0.3);
+}
+
+.updates-date {
+  font-size: 13px;
+  color: #8f8ca6;
+}
+
+/* ---- Latest update card ---- */
+
+.updates-latest {
+  margin-bottom: 50px;
+}
+
+.updates-latest-label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(210, 194, 255, 0.8);
+}
+
+.updates-latest-card {
+  display: block;
+  padding: 30px 30px 26px;
+
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045));
+  box-shadow:
+    0 18px 55px rgba(30, 10, 70, 0.34),
+    0 0 35px rgba(130, 75, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  text-decoration: none;
+  color: inherit;
+
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.updates-latest-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 22px 60px rgba(30, 10, 70, 0.4),
+    0 0 45px rgba(130, 75, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.updates-latest-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.updates-latest-card h2 {
+  margin: 0 0 10px;
+  font-size: 24px;
+  color: white;
+}
+
+.updates-latest-card p {
+  margin: 0 0 16px;
+  color: #c3c1d6;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.updates-read-more {
+  font-size: 14px;
+  font-weight: 800;
+  color: #cabaff;
+}
+
+/* ---- Previous updates list ---- */
+
+.updates-previous h3 {
+  margin: 0 0 18px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.updates-list-item {
+  display: block;
+  padding: 20px 24px;
+
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+
+  text-decoration: none;
+  color: inherit;
+
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.updates-list-item:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.updates-list-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.updates-list-item h4 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  color: white;
+}
+
+.updates-list-item p {
+  margin: 0;
+  color: #aaa9bd;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ---- Detail page ---- */
+
+.updates-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.updates-detail h1 {
+  margin: 0 0 30px;
+  font-size: clamp(28px, 5vw, 38px);
+  font-weight: 1000;
+  letter-spacing: -1px;
+  color: #f2ecff;
+}
+
+.updates-detail-body p {
+  margin: 0 0 20px;
+  color: #c3c1d6;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+@media (max-width: 600px) {
+  .updates-page {
+    padding: 40px 20px 60px;
+  }
+
+  .updates-latest-card {
+    padding: 24px 22px 22px;
+  }
+}

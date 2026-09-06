@@ -1,18 +1,40 @@
+import { Link } from "react-router-dom";
 import "./Home.css";
+import { getLatestUpdate, CATEGORIES, formatUpdateDate } from "./updatesData";
 
 function Home({ goToPage }) {
+  const latestUpdate = getLatestUpdate();
+
   return (
     <section className="home-page">
 
-      <div className="home-hero">
-        <span className="home-eyebrow">FREE ONLINE TOOLS</span>
-        <h1>
-          <span className="home-bolt">⚡</span> DiscShrink
-        </h1>
-        <p>
-          Fast, free, no-signup tools for your videos —
-          compress, convert, and more, right in your browser.
-        </p>
+      <div className="home-top">
+
+        <div className="home-hero">
+          <span className="home-eyebrow">FREE ONLINE TOOLS</span>
+          <h1>
+            <span className="home-bolt">⚡</span> DiscShrink
+          </h1>
+          <p>
+            Fast, free, no-signup tools for your videos —
+            compress, convert, and more, right in your browser.
+          </p>
+        </div>
+
+        {latestUpdate && (
+          <Link to={`/updates/${latestUpdate.slug}`} className="home-announcement">
+            <span className="home-announcement-label">📢 DiscShrink Update</span>
+            <h3>{latestUpdate.title}</h3>
+            <p>{latestUpdate.summary}</p>
+            <div className="home-announcement-footer">
+              <span className="home-announcement-date">
+                {CATEGORIES[latestUpdate.category]?.icon} {formatUpdateDate(latestUpdate.date)}
+              </span>
+              <span className="home-announcement-cta">Read Update →</span>
+            </div>
+          </Link>
+        )}
+
       </div>
 
       <div className="home-tools-grid">
