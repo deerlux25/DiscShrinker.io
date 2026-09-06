@@ -32,6 +32,108 @@ function rolloverStatsIfNewDay() {
   }
 }
 
+// ---- Incident history (persisted to disk so it survives restarts/redeploys) ----
+// Two things are monitored automatically here, with no manual curation needed:
+//   1. FFmpeg Engine availability - checked on a timer, independent of any visitor
+//      having the Status page open.
+//   2. Compression Server health - inferred from a rolling failure rate across the
+//      most recent compression jobs (one bad upload doesn't count; a run of failures does).
+// Note on limits: this can only detect things the running server itself can observe.
+// If the whole Node process crashes or the host goes down, nothing here can log that -
+// true "server down" detection needs an external uptime checker (e.g. UptimeRobot, or
+// Render's own health-check alerting) pinging /health from outside this process.
+const INCIDENTS_FILE = path.join(__dirname, "incidents.json");
+const MAX_STORED_INCIDENTS = 100;
+
+function loadIncidents() {
+  try {
+    const raw = fs.readFileSync(INCIDENTS_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return []; // file doesn't exist yet - start fresh
+  }
+}
+
+let incidents = loadIncidents();
+
+function saveIncidents() {
+  incidents = incidents.slice(0, MAX_STORED_INCIDENTS);
+  try {
+    fs.writeFileSync(INCIDENTS_FILE, JSON.stringify(incidents, null, 2));
+  } catch (err) {
+    console.log("Could not persist incident history:", err.message);
+  }
+}
+
+function makeIncidentId() {
+  return `INC-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+
+function findOpenIncident(service) {
+  return incidents.find((incident) => incident.service === service && incident.resolvedAt === null);
+}
+
+function openIncident(service, title) {
+  if (findOpenIncident(service)) return; // already tracking this outage
+
+  incidents.unshift({
+    id: makeIncidentId(),
+    title,
+    service,
+    startedAt: new Date().toISOString(),
+    resolvedAt: null,
+  });
+
+  console.log(`Incident opened: ${title} (${service})`);
+  saveIncidents();
+}
+
+function resolveIncident(service) {
+  const incident = findOpenIncident(service);
+  if (!incident) return;
+
+  incident.resolvedAt = new Date().toISOString();
+  console.log(`Incident resolved: ${incident.title} (${service})`);
+  saveIncidents();
+}
+
+// ---- FFmpeg engine self-check ----
+// Runs on its own timer so an outage is recorded even if no one has the Status page open.
+const HEALTH_CHECK_INTERVAL_MS = 30000;
+
+function checkFfmpegEngine() {
+  ffmpeg.getAvailableFormats((err) => {
+    if (err) {
+      openIncident("FFmpeg Engine", "FFmpeg Engine Unavailable");
+    } else {
+      resolveIncident("FFmpeg Engine");
+    }
+  });
+}
+
+// ---- Compression job failure-rate tracking ----
+const RECENT_JOB_OUTCOMES = [];
+const RECENT_JOB_WINDOW = 8;
+const FAILURE_RATE_THRESHOLD = 0.5; // open an incident once half or more of the recent jobs failed
+const MIN_JOBS_BEFORE_CHECKING = 3; // don't judge off just one or two data points
+
+function recordJobOutcome(success) {
+  RECENT_JOB_OUTCOMES.push(success);
+  if (RECENT_JOB_OUTCOMES.length > RECENT_JOB_WINDOW) RECENT_JOB_OUTCOMES.shift();
+
+  if (RECENT_JOB_OUTCOMES.length < MIN_JOBS_BEFORE_CHECKING) return;
+
+  const failures = RECENT_JOB_OUTCOMES.filter((ok) => !ok).length;
+  const failureRate = failures / RECENT_JOB_OUTCOMES.length;
+
+  if (failureRate >= FAILURE_RATE_THRESHOLD) {
+    openIncident("Compression Server", "Elevated Compression Failures");
+  } else {
+    resolveIncident("Compression Server");
+  }
+}
+
 // ---- Ticket numbering (persisted to disk so numbers survive restarts/redeploys) ----
 const TICKET_COUNTER_FILE = path.join(__dirname, "ticket-counter.json");
 
@@ -144,6 +246,20 @@ app.get("/stats", (req, res) => {
     queuedCompressions: compressionQueue.length,
     maxConcurrentCompressions: MAX_CONCURRENT_COMPRESSIONS,
   });
+});
+
+app.get("/incidents", (req, res) => {
+  const now = Date.now();
+  const withDuration = incidents.map((incident) => {
+    const startedMs = new Date(incident.startedAt).getTime();
+    const endMs = incident.resolvedAt ? new Date(incident.resolvedAt).getTime() : now;
+    return {
+      ...incident,
+      resolved: incident.resolvedAt !== null,
+      durationMs: endMs - startedMs,
+    };
+  });
+  res.json(withDuration);
 });
 
 // Support form submissions. Stored to a local log file since no email
@@ -260,6 +376,7 @@ function runCompression(job) {
       if (err) {
         console.log(err);
         stats.failCount += 1;
+        recordJobOutcome(false);
 
         if (fs.existsSync(input)) {
           fs.unlinkSync(input);
@@ -275,6 +392,7 @@ function runCompression(job) {
 
       if (!Number.isFinite(duration) || duration <= 0) {
         stats.failCount += 1;
+        recordJobOutcome(false);
 
         if (fs.existsSync(input)) {
           fs.unlinkSync(input);
@@ -315,6 +433,7 @@ function runCompression(job) {
           console.log("Compression complete");
           stats.successCount += 1;
           stats.totalDurationMs += Date.now() - job.startedAt;
+          recordJobOutcome(true);
           job.status = "complete";
 
           resolve();
@@ -323,6 +442,7 @@ function runCompression(job) {
           console.log("FFmpeg error:");
           console.log(error.message);
           stats.failCount += 1;
+          recordJobOutcome(false);
 
           if (fs.existsSync(input)) {
             fs.unlinkSync(input);
@@ -450,6 +570,11 @@ app.get("/compress/download/:jobId", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+
+// Kick off self-monitoring immediately, then keep checking on a timer -
+// this runs whether or not anyone has the Status page open.
+checkFfmpegEngine();
+setInterval(checkFfmpegEngine, HEALTH_CHECK_INTERVAL_MS);
 
 app.listen(PORT, () => {
   console.log("Compression server running on port " + PORT);
