@@ -7,6 +7,7 @@ import CompressionStatus from "./CompressionStatus";
 import Legal from "./Legal";
 import ComingSoon from "./ComingSoon";
 import Home from "./Home";
+import Tools from "./Tools";
 import UpdatesArchive from "./UpdatesArchive";
 import UpdateDetail from "./UpdateDetail";
 import History from "./History";
@@ -254,6 +255,214 @@ function Compressor() {
   );
 }
 
+const QUALITY_OPTIONS = [
+  { value: "high", label: "🎯 High Quality (larger file)" },
+  { value: "balanced", label: "⚖️ Balanced" },
+  { value: "small", label: "📦 Smaller File" },
+];
+
+function Converter() {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("");
+  const [converting, setConverting] = useState(false);
+  const [queueInfo, setQueueInfo] = useState(null);
+  const [quality, setQuality] = useState("balanced");
+  const { user } = useAuth();
+
+  const fileInputRef = useRef(null);
+
+  async function convertVideo() {
+    if (!file) {
+      setStatus("Please select a video first.");
+      return;
+    }
+
+    setConverting(true);
+    setQueueInfo(null);
+    setStatus("Uploading video to the conversion queue...");
+
+    try {
+      const formData = new FormData();
+      formData.append("video", file);
+      formData.append("quality", quality);
+
+      const sessionResult = user ? await supabase.auth.getSession() : null;
+      const accessToken = sessionResult?.data?.session?.access_token;
+
+      const response = await fetch(`${SERVER_URL}/convert`, {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorMessage = await response.text();
+        throw new Error(errorMessage);
+      }
+
+      const job = await response.json();
+      setQueueInfo({ position: job.queuePosition, total: job.queueTotal, status: job.status });
+
+      let completed = false;
+      while (!completed) {
+        const statusResponse = await fetch(`${SERVER_URL}/compress/status/${job.jobId}`);
+        if (!statusResponse.ok) throw new Error("Could not check conversion queue status.");
+
+        const current = await statusResponse.json();
+        setQueueInfo({
+          position: current.queuePosition,
+          total: current.queueTotal,
+          status: current.status,
+        });
+
+        if (current.status === "failed") {
+          throw new Error(current.error || "Video conversion failed.");
+        }
+
+        if (current.status === "complete") {
+          completed = true;
+          break;
+        }
+
+        if (current.status === "processing") {
+          setStatus("Converting your video...");
+        } else {
+          setStatus("Waiting in the conversion queue...");
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      const downloadResponse = await fetch(`${SERVER_URL}/compress/download/${job.jobId}`);
+      if (!downloadResponse.ok) throw new Error("Conversion finished, but the video could not be downloaded.");
+
+      const blob = await downloadResponse.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "converted-video.mp4";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setStatus("Conversion complete!");
+      setQueueInfo(null);
+    } catch (error) {
+      console.log(error);
+      setStatus(`Failed: ${error.message}`);
+    }
+
+    setConverting(false);
+  }
+
+  function chooseFile() {
+    fileInputRef.current.click();
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+
+    const droppedFile = e.dataTransfer.files[0];
+
+    if (droppedFile) {
+      setFile(droppedFile);
+      setStatus(`Selected: ${droppedFile.name}`);
+    }
+  }
+
+  return (
+    <>
+      <section className="hero">
+        <h1>
+          Video Format
+          <br />
+          Converter
+        </h1>
+      </section>
+
+      <section className="compress-card">
+        <div
+          className="drop-zone"
+          onClick={chooseFile}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <h2>Drag & drop your video here</h2>
+          <p>or click to browse</p>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              chooseFile();
+            }}
+          >
+            Choose Video
+          </button>
+
+          <input
+            ref={fileInputRef}
+            hidden
+            type="file"
+            accept="video/*,.mov,.mp4,.mkv,.webm,.avi"
+            onChange={(e) => {
+              const selected = e.target.files[0];
+
+              if (selected) {
+                setFile(selected);
+                setStatus(`Selected: ${selected.name}`);
+              }
+            }}
+          />
+
+          {file && <p>{file.name}</p>}
+        </div>
+
+        <div className="target-size-wrap">
+          <label htmlFor="quality">Output quality</label>
+          <select
+            id="quality"
+            value={quality}
+            onChange={(e) => setQuality(e.target.value)}
+            disabled={converting}
+          >
+            {QUALITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {queueInfo && (
+          <div className={`queue-display ${queueInfo.status === "processing" ? "queue-processing" : ""}`}>
+            <div className="queue-display-icon">⚡</div>
+            <div className="queue-display-content">
+              <strong>
+                {queueInfo.status === "processing"
+                  ? "Now Converting"
+                  : `Queue ${queueInfo.position} of ${queueInfo.total}`}
+              </strong>
+              <span>
+                {queueInfo.status === "processing"
+                  ? "Your video is being converted right now."
+                  : "Your video is waiting its turn."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <button className="compress-button" onClick={convertVideo} disabled={converting}>
+          {converting ? "Converting..." : "Convert Video"}
+        </button>
+
+        <p>{status}</p>
+      </section>
+    </>
+  );
+}
+
 function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -306,7 +515,7 @@ function App() {
     setSearchOpen(false);
   }
 
-  const toolsActive = ["/compressor", "/gif", "/audio"].includes(location.pathname);
+  const toolsActive = ["/tools", "/compressor", "/converter", "/gif", "/audio"].includes(location.pathname);
   const helpActive = ["/faq", "/support", "/status"].includes(location.pathname);
 
   return (
@@ -330,6 +539,18 @@ function App() {
               {toolsOpen && (
                 <div className="nav-dropdown-menu">
                   <span
+                    className={location.pathname === "/tools" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/tools");
+                      setToolsOpen(false);
+                    }}
+                  >
+                    All Tools
+                  </span>
+
+                  <div className="nav-dropdown-divider" />
+
+                  <span
                     className={location.pathname === "/compressor" ? "active" : ""}
                     onMouseDown={() => {
                       navigate("/compressor");
@@ -337,6 +558,16 @@ function App() {
                     }}
                   >
                     Video Compressor
+                  </span>
+
+                  <span
+                    className={location.pathname === "/converter" ? "active" : ""}
+                    onMouseDown={() => {
+                      navigate("/converter");
+                      setToolsOpen(false);
+                    }}
+                  >
+                    Video Converter
                   </span>
 
                   <span
@@ -530,6 +761,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Home goToPage={(path) => navigate(`/${path === "home" ? "" : path}`)} />} />
         <Route path="/compressor" element={<Compressor />} />
+        <Route path="/converter" element={<Converter />} />
+        <Route path="/tools" element={<Tools />} />
         <Route path="/faq" element={<FAQ />} />
         <Route
           path="/support"

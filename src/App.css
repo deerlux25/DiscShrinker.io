@@ -269,6 +269,12 @@ body {
   color: rgb(var(--fg-rgb));
 }
 
+.nav-dropdown-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: rgba(var(--fg-rgb), 0.1);
+}
+
 .nav-dropdown-menu span.active {
   color: rgb(var(--fg-rgb));
   background: rgba(150, 100, 255, 0.1);

@@ -1,6 +1,10 @@
 export const SEARCH_INDEX = [
+  { path: "/tools", title: "All Tools", snippet: "Browse every free tool DiscShrink offers.", keywords: "tools all browse hub list overview" },
+
   { path: "/compressor", title: "Video Compressor", snippet: "Drag & drop or choose a video to compress.", keywords: "compress compressor upload drag drop video file discord shrink target size 20mb" },
   { path: "/compressor", title: "Target Size", snippet: "Choose 20MB, 19,765 KB, or 30,000 KB output size.", keywords: "target size kb mb discord limit output bitrate" },
+
+  { path: "/converter", title: "Video Converter", snippet: "Convert HEVC, VP9, AV1, and other formats to widely-compatible MP4.", keywords: "convert converter codec format hevc h265 vp9 av1 compatibility mp4 h264" },
 
   { path: "/faq", title: "Supported Files", snippet: "Supports MP4, MOV, MKV, AVI, WebM, and HEVC videos.", keywords: "files formats mp4 mov mkv avi webm hevc supported" },
   { path: "/faq", title: "Codecs", snippet: "Works with H.264, H.265, VP9, AAC, and more.", keywords: "codecs h264 h265 vp9 aac video audio codec" },
