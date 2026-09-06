@@ -322,6 +322,34 @@ app.get("/stats", (req, res) => {
   });
 });
 
+// External uptime monitoring (e.g. UptimeRobot) posts here when it detects
+// this site going down or coming back up from OUTSIDE this server - the one
+// kind of outage the server can never detect about itself. Feeds into the
+// exact same incident log the FFmpeg/Compression Server checks use, so it
+// shows up on the Status page automatically, no separate dashboard needed.
+const MONITORING_WEBHOOK_SECRET = process.env.MONITORING_WEBHOOK_SECRET;
+
+app.post("/monitoring/uptime-webhook", (req, res) => {
+  if (!MONITORING_WEBHOOK_SECRET || req.query.secret !== MONITORING_WEBHOOK_SECRET) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  const { alertTypeFriendlyName, monitorFriendlyName } = req.body || {};
+  const service = monitorFriendlyName || "Website";
+
+  if (alertTypeFriendlyName === "Down") {
+    openIncident(service, `${service} Unreachable`);
+  } else if (alertTypeFriendlyName === "Up") {
+    resolveIncident(service);
+  } else {
+    // Unrecognized alert type (e.g. SSL expiry) - acknowledge but ignore,
+    // rather than guessing at incident state.
+    console.log("Uptime webhook received an unhandled alert type:", alertTypeFriendlyName);
+  }
+
+  res.status(200).send("ok");
+});
+
 app.get("/incidents", (req, res) => {
   const now = Date.now();
   const withDuration = incidents.map((incident) => {
@@ -433,13 +461,24 @@ function processCompressionQueue() {
 }
 
 function runCompression(job) {
-  const { req, res, input, output, originalName, targetSizeKB } = job;
   job.status = "processing";
   job.startedAt = Date.now();
 
-  return new Promise((resolve) => {
-    job.compressionStartedAt = Date.now();
+  if (job.type === "convert") {
+    return runConversion(job);
+  }
 
+  if (job.type === "extract") {
+    return runExtraction(job);
+  }
+
+  return runTargetSizeCompression(job);
+}
+
+function runTargetSizeCompression(job) {
+  const { req, input, output, targetSizeKB } = job;
+
+  return new Promise((resolve) => {
     console.log(
       "Compressing:",
       req.file.originalname,
@@ -541,6 +580,194 @@ function runCompression(job) {
   });
 }
 
+// ---- Codec/format converter ----
+// Re-encodes any video (HEVC, VP9, AV1, whatever the source is) into
+// widely-compatible H.264/AAC MP4. Quality-based (CRF), not target-size
+// based - the goal here is compatibility, not hitting an exact file size.
+const CRF_BY_QUALITY = { high: 18, balanced: 23, small: 28 };
+
+function runConversion(job) {
+  const { req, input, output, quality } = job;
+  const crf = CRF_BY_QUALITY[quality] || CRF_BY_QUALITY.balanced;
+
+  return new Promise((resolve) => {
+    console.log(
+      "Converting:",
+      req.file.originalname,
+      `| Queue wait complete | Quality: ${quality} (CRF ${crf})`
+    );
+
+    ffmpeg.ffprobe(input, async (err) => {
+      if (err) {
+        console.log(err);
+        stats.failCount += 1;
+        recordJobOutcome(false);
+
+        if (fs.existsSync(input)) {
+          fs.unlinkSync(input);
+        }
+
+        job.status = "failed";
+        job.error = "Could not read video";
+        await saveToHistoryIfLoggedIn(job, false);
+        resolve();
+        return;
+      }
+
+      ffmpeg(input)
+        .videoCodec("libx264")
+        .audioCodec("aac")
+        .outputOptions([
+          "-preset medium",
+          `-crf ${crf}`,
+          "-pix_fmt yuv420p",
+          "-movflags +faststart",
+        ])
+        .audioBitrate("192k")
+        .format("mp4")
+        .on("start", (command) => {
+          console.log("FFmpeg (convert):");
+          console.log(command);
+        })
+        .on("progress", (progress) => {
+          console.log(Math.round(progress.percent || 0) + "%");
+        })
+        .on("end", async () => {
+          console.log("Conversion complete");
+          stats.successCount += 1;
+          stats.totalDurationMs += Date.now() - job.startedAt;
+          recordJobOutcome(true);
+          job.status = "complete";
+
+          await saveToHistoryIfLoggedIn(job, true);
+
+          resolve();
+        })
+        .on("error", async (error) => {
+          console.log("FFmpeg error (convert):");
+          console.log(error.message);
+          stats.failCount += 1;
+          recordJobOutcome(false);
+
+          if (fs.existsSync(input)) {
+            fs.unlinkSync(input);
+          }
+
+          if (fs.existsSync(output)) {
+            fs.unlinkSync(output);
+          }
+
+          job.status = "failed";
+          job.error = `Video conversion failed. Reason: ${error.message}`;
+
+          await saveToHistoryIfLoggedIn(job, false);
+          resolve();
+        })
+        .save(output);
+    });
+  });
+}
+
+// ---- Audio extractor ----
+// Strips the video track and encodes just the audio, as MP3 or WAV.
+function runExtraction(job) {
+  const { req, input, output, audioFormat } = job;
+
+  return new Promise((resolve) => {
+    console.log(
+      "Extracting audio:",
+      req.file.originalname,
+      `| Queue wait complete | Format: ${audioFormat}`
+    );
+
+    ffmpeg.ffprobe(input, async (err, metadata) => {
+      if (err) {
+        console.log(err);
+        stats.failCount += 1;
+        recordJobOutcome(false);
+
+        if (fs.existsSync(input)) {
+          fs.unlinkSync(input);
+        }
+
+        job.status = "failed";
+        job.error = "Could not read video";
+        await saveToHistoryIfLoggedIn(job, false);
+        resolve();
+        return;
+      }
+
+      const hasAudio =
+        Array.isArray(metadata.streams) &&
+        metadata.streams.some((stream) => stream.codec_type === "audio");
+
+      if (!hasAudio) {
+        stats.failCount += 1;
+        recordJobOutcome(false);
+
+        if (fs.existsSync(input)) {
+          fs.unlinkSync(input);
+        }
+
+        job.status = "failed";
+        job.error = "This video doesn't have an audio track.";
+        await saveToHistoryIfLoggedIn(job, false);
+        resolve();
+        return;
+      }
+
+      const command = ffmpeg(input).noVideo();
+
+      if (audioFormat === "wav") {
+        command.audioCodec("pcm_s16le").format("wav");
+      } else {
+        command.audioCodec("libmp3lame").audioBitrate("192k").format("mp3");
+      }
+
+      command
+        .on("start", (cmd) => {
+          console.log("FFmpeg (extract):");
+          console.log(cmd);
+        })
+        .on("progress", (progress) => {
+          console.log(Math.round(progress.percent || 0) + "%");
+        })
+        .on("end", async () => {
+          console.log("Audio extraction complete");
+          stats.successCount += 1;
+          stats.totalDurationMs += Date.now() - job.startedAt;
+          recordJobOutcome(true);
+          job.status = "complete";
+
+          await saveToHistoryIfLoggedIn(job, true);
+
+          resolve();
+        })
+        .on("error", async (error) => {
+          console.log("FFmpeg error (extract):");
+          console.log(error.message);
+          stats.failCount += 1;
+          recordJobOutcome(false);
+
+          if (fs.existsSync(input)) {
+            fs.unlinkSync(input);
+          }
+
+          if (fs.existsSync(output)) {
+            fs.unlinkSync(output);
+          }
+
+          job.status = "failed";
+          job.error = `Audio extraction failed. Reason: ${error.message}`;
+
+          await saveToHistoryIfLoggedIn(job, false);
+          resolve();
+        })
+        .save(output);
+    });
+  });
+}
+
 app.post("/compress", upload.single("video"), (req, res) => {
   console.log("Received upload request");
 
@@ -576,6 +803,7 @@ app.post("/compress", upload.single("video"), (req, res) => {
   // does not make compression performance look slower than it is.
   const job = {
     id: makeCompressionJobId(),
+    type: "compress",
     req,
     res,
     input,
@@ -594,6 +822,138 @@ app.post("/compress", upload.single("video"), (req, res) => {
 
   console.log(
     `Compression queued. Position: ${queueSnapshot.position}/${queueSnapshot.total}. ` +
+    `Active: ${activeCompressions}/${MAX_CONCURRENT_COMPRESSIONS}`
+  );
+
+  res.status(202).json({
+    jobId: job.id,
+    status: job.status,
+    queuePosition: queueSnapshot.position,
+    queueTotal: queueSnapshot.total,
+    activeCompressions,
+    maxConcurrentCompressions: MAX_CONCURRENT_COMPRESSIONS,
+  });
+
+  processCompressionQueue();
+});
+
+// Codec/format converter - shares the SAME queue and concurrency limit as
+// /compress on purpose, since both run FFmpeg on the same small server and
+// need to be capped together, not separately.
+app.post("/convert", upload.single("video"), (req, res) => {
+  console.log("Received conversion request");
+
+  if (!req.file) {
+    return res.status(400).send("No video uploaded");
+  }
+
+  rolloverStatsIfNewDay();
+  stats.totalCompressions += 1;
+  stats.compressionsToday += 1;
+
+  const input = req.file.path;
+
+  const originalName = req.file.originalname
+    .replace(/\.[^/.]+$/, "");
+
+  const outputName = `${originalName}-converted-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`;
+
+  const output = path.join(
+    __dirname,
+    "uploads",
+    outputName
+  );
+
+  const requestedQuality = req.body.quality;
+  const quality = ["high", "balanced", "small"].includes(requestedQuality)
+    ? requestedQuality
+    : "balanced";
+
+  const job = {
+    id: makeCompressionJobId(),
+    type: "convert",
+    req,
+    res,
+    input,
+    output,
+    originalName,
+    quality,
+    status: "queued",
+    error: null,
+    startedAt: null,
+  };
+
+  compressionJobs.set(job.id, job);
+  compressionQueue.push(job);
+
+  const queueSnapshot = getQueueSnapshot(job);
+
+  console.log(
+    `Conversion queued. Position: ${queueSnapshot.position}/${queueSnapshot.total}. ` +
+    `Active: ${activeCompressions}/${MAX_CONCURRENT_COMPRESSIONS}`
+  );
+
+  res.status(202).json({
+    jobId: job.id,
+    status: job.status,
+    queuePosition: queueSnapshot.position,
+    queueTotal: queueSnapshot.total,
+    activeCompressions,
+    maxConcurrentCompressions: MAX_CONCURRENT_COMPRESSIONS,
+  });
+
+  processCompressionQueue();
+});
+
+// Audio extractor - shares the same queue/concurrency limit as the rest.
+app.post("/extract-audio", upload.single("video"), (req, res) => {
+  console.log("Received audio extraction request");
+
+  if (!req.file) {
+    return res.status(400).send("No video uploaded");
+  }
+
+  rolloverStatsIfNewDay();
+  stats.totalCompressions += 1;
+  stats.compressionsToday += 1;
+
+  const input = req.file.path;
+
+  const originalName = req.file.originalname
+    .replace(/\.[^/.]+$/, "");
+
+  const requestedFormat = req.body.audioFormat;
+  const audioFormat = requestedFormat === "wav" ? "wav" : "mp3";
+
+  const outputName = `${originalName}-audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${audioFormat}`;
+
+  const output = path.join(
+    __dirname,
+    "uploads",
+    outputName
+  );
+
+  const job = {
+    id: makeCompressionJobId(),
+    type: "extract",
+    req,
+    res,
+    input,
+    output,
+    originalName,
+    audioFormat,
+    status: "queued",
+    error: null,
+    startedAt: null,
+  };
+
+  compressionJobs.set(job.id, job);
+  compressionQueue.push(job);
+
+  const queueSnapshot = getQueueSnapshot(job);
+
+  console.log(
+    `Extraction queued. Position: ${queueSnapshot.position}/${queueSnapshot.total}. ` +
     `Active: ${activeCompressions}/${MAX_CONCURRENT_COMPRESSIONS}`
   );
 
@@ -628,15 +988,30 @@ app.get("/compress/status/:jobId", (req, res) => {
 app.get("/compress/download/:jobId", (req, res) => {
   const job = compressionJobs.get(req.params.jobId);
   if (!job || job.status !== "complete") {
-    return res.status(404).send("Compressed video is not ready");
+    return res.status(404).send("File is not ready");
   }
+
+  const ext = path.extname(job.output).toLowerCase();
+  const contentTypeByExt = {
+    ".mp4": "video/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+  };
+  const filenameByType = {
+    compress: "compressed-video.mp4",
+    convert: "converted-video.mp4",
+    extract: `extracted-audio${ext}`,
+  };
+
+  const contentType = contentTypeByExt[ext] || "application/octet-stream";
+  const downloadFilename = filenameByType[job.type] || `download${ext}`;
 
   res.sendFile(
     job.output,
     {
       headers: {
-        "Content-Type": "video/mp4",
-        "Content-Disposition": 'inline; filename="compressed-video.mp4"'
+        "Content-Type": contentType,
+        "Content-Disposition": `inline; filename="${downloadFilename}"`
       }
     },
     (sendErr) => {
