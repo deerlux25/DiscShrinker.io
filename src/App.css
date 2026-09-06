@@ -466,7 +466,7 @@ body {
 
 
   background:
-    rgba(20, 18, 42, 0.85);
+    var(--panel-bg);
 
 
   border:
