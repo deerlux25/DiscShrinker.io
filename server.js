@@ -4,11 +4,53 @@ const multer = require("multer");
 const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// ---- Optional accounts (Supabase) ----
+// Accounts are entirely optional - DiscShrink works exactly as before if
+// these env vars are unset, or if a request has no auth token at all.
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabaseAdmin =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : null;
+
+if (!supabaseAdmin) {
+  console.log(
+    "Supabase env vars not set - accounts/compression history are disabled. Compression itself still works normally."
+  );
+}
+
+// Attaches req.user when a valid Supabase session token is sent, but never
+// blocks the request if one isn't - every route stays usable with no account.
+async function identifyUser(req, res, next) {
+  req.user = null;
+
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (token && supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && data?.user) {
+        req.user = data.user;
+      }
+    } catch (err) {
+      console.log("Could not verify auth token:", err.message);
+    }
+  }
+
+  next();
+}
+
+app.use(identifyUser);
 
 const upload = multer({
   dest: "uploads/"
@@ -131,6 +173,38 @@ function recordJobOutcome(success) {
     openIncident("Compression Server", "Elevated Compression Failures");
   } else {
     resolveIncident("Compression Server");
+  }
+}
+
+// ---- Compression history (optional, only for signed-in users) ----
+// Metadata only - filename, sizes, target, timestamp. The video file itself
+// is always deleted immediately after the job finishes, for everyone,
+// signed in or not - this never uploads or retains the actual video.
+async function saveToHistoryIfLoggedIn(job, success) {
+  if (!job.req.user || !supabaseAdmin) return;
+
+  const user = job.req.user;
+  const originalSizeBytes = job.req.file ? job.req.file.size : null;
+  const compressedSizeBytes =
+    success && fs.existsSync(job.output) ? fs.statSync(job.output).size : null;
+
+  try {
+    const { error: insertError } = await supabaseAdmin.from("compression_history").insert({
+      user_id: user.id,
+      original_filename: job.originalName || null,
+      target_size_kb: job.targetSizeKB || null,
+      original_size_bytes: originalSizeBytes,
+      compressed_size_bytes: compressedSizeBytes,
+      status: success ? "complete" : "failed",
+    });
+
+    if (insertError) {
+      console.log("Could not save compression history row:", insertError.message);
+    }
+  } catch (err) {
+    // History is a bonus feature for signed-in users - it must never break
+    // the actual compression response for anyone.
+    console.log("Could not save compression history:", err.message);
   }
 }
 
@@ -372,7 +446,7 @@ function runCompression(job) {
       `| Queue wait complete | Target: ${targetSizeKB} KB`
     );
 
-    ffmpeg.ffprobe(input, (err, metadata) => {
+    ffmpeg.ffprobe(input, async (err, metadata) => {
       if (err) {
         console.log(err);
         stats.failCount += 1;
@@ -384,6 +458,7 @@ function runCompression(job) {
 
         job.status = "failed";
         job.error = "Could not read video";
+        await saveToHistoryIfLoggedIn(job, false);
         resolve();
         return;
       }
@@ -400,6 +475,7 @@ function runCompression(job) {
 
         job.status = "failed";
         job.error = "Could not determine video duration";
+        await saveToHistoryIfLoggedIn(job, false);
         resolve();
         return;
       }
@@ -429,16 +505,18 @@ function runCompression(job) {
         .on("progress", (progress) => {
           console.log(Math.round(progress.percent || 0) + "%");
         })
-        .on("end", () => {
+        .on("end", async () => {
           console.log("Compression complete");
           stats.successCount += 1;
           stats.totalDurationMs += Date.now() - job.startedAt;
           recordJobOutcome(true);
           job.status = "complete";
 
+          await saveToHistoryIfLoggedIn(job, true);
+
           resolve();
         })
-        .on("error", (error) => {
+        .on("error", async (error) => {
           console.log("FFmpeg error:");
           console.log(error.message);
           stats.failCount += 1;
@@ -455,6 +533,7 @@ function runCompression(job) {
           job.status = "failed";
           job.error = `Video Compression failed. Reason: ${error.message}`;
 
+          await saveToHistoryIfLoggedIn(job, false);
           resolve();
         })
         .save(output);
