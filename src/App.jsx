@@ -256,10 +256,16 @@ function Compressor() {
 }
 
 const QUALITY_OPTIONS = [
-  { value: "high", label: "🎯 High Quality (larger file)" },
-  { value: "balanced", label: "⚖️ Balanced" },
-  { value: "small", label: "📦 Smaller File" },
+  { value: "high", label: "🎯 High Quality — closest to original" },
+  { value: "balanced", label: "⚖️ Balanced — good quality, smaller file" },
+  { value: "small", label: "📦 Smaller File — most compression" },
 ];
+
+const QUALITY_DESCRIPTIONS = {
+  high: "Keeps quality as close to your original as possible. Expect the largest file of the three options — best when quality matters more than size.",
+  balanced: "A solid middle ground: noticeably smaller than the original with quality loss most people won't notice.",
+  small: "The smallest output file. Some quality loss is visible, especially in fast motion or fine detail — good when file size matters most.",
+};
 
 function Converter() {
   const [file, setFile] = useState(null);
@@ -433,6 +439,7 @@ function Converter() {
               </option>
             ))}
           </select>
+          <p className="quality-hint">{QUALITY_DESCRIPTIONS[quality]}</p>
         </div>
 
         {queueInfo && (
