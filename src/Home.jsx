@@ -16,7 +16,7 @@ function Home({ goToPage }) {
             <span className="home-bolt">⚡</span> DiscShrink
           </h1>
           <p>
-            Fast, free, no-signup tools for your videos —
+            Fast, free tools for your videos — no signup required —
             compress, convert, and more, right in your browser.
           </p>
         </div>
@@ -52,6 +52,18 @@ function Home({ goToPage }) {
         </div>
 
         <div className="home-tool-card">
+          <div className="home-tool-icon">🔄</div>
+          <h2>Video Converter</h2>
+          <p>Convert HEVC, VP9, AV1, and other formats to widely-compatible MP4.</p>
+          <button
+            className="home-tool-btn"
+            onClick={() => goToPage("converter")}
+          >
+            Open Tool
+          </button>
+        </div>
+
+        <div className="home-tool-card">
           <span className="home-soon-tag">Coming Soon</span>
           <div className="home-tool-icon">🎞️</div>
           <h2>Video to GIF</h2>
@@ -65,15 +77,14 @@ function Home({ goToPage }) {
         </div>
 
         <div className="home-tool-card">
-          <span className="home-soon-tag">Coming Soon</span>
           <div className="home-tool-icon">🎧</div>
           <h2>Audio Extractor</h2>
           <p>Pull just the audio track out of any video file.</p>
           <button
-            className="home-tool-btn home-tool-btn-soon"
+            className="home-tool-btn"
             onClick={() => goToPage("audio")}
           >
-            Preview
+            Open Tool
           </button>
         </div>
 
@@ -81,7 +92,7 @@ function Home({ goToPage }) {
 
       <div className="home-features">
         <span>⚡ 100% Free</span>
-        <span>🔒 No Sign-up</span>
+        <span>🔒 No Signup Required</span>
         <span>🚀 Powered by FFmpeg</span>
       </div>
 

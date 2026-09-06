@@ -29,7 +29,7 @@ const TOOLS = [
     title: "Audio Extractor",
     description: "Pull just the audio track out of any video file.",
     path: "/audio",
-    soon: true,
+    soon: false,
   },
 ];
 

@@ -470,6 +470,219 @@ function Converter() {
   );
 }
 
+const AUDIO_FORMAT_OPTIONS = [
+  { value: "mp3", label: "🎵 MP3 — smaller, universally compatible" },
+  { value: "wav", label: "🎼 WAV — uncompressed, highest quality" },
+];
+
+const AUDIO_FORMAT_DESCRIPTIONS = {
+  mp3: "Compressed audio that plays everywhere and keeps file sizes small — the right choice for almost everyone.",
+  wav: "Uncompressed, exact audio quality with no loss from compression. Files are much larger — best for further editing or archiving.",
+};
+
+function AudioExtractor() {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [queueInfo, setQueueInfo] = useState(null);
+  const [audioFormat, setAudioFormat] = useState("mp3");
+  const { user } = useAuth();
+
+  const fileInputRef = useRef(null);
+
+  async function extractAudio() {
+    if (!file) {
+      setStatus("Please select a video first.");
+      return;
+    }
+
+    setExtracting(true);
+    setQueueInfo(null);
+    setStatus("Uploading video to the extraction queue...");
+
+    try {
+      const formData = new FormData();
+      formData.append("video", file);
+      formData.append("audioFormat", audioFormat);
+
+      const sessionResult = user ? await supabase.auth.getSession() : null;
+      const accessToken = sessionResult?.data?.session?.access_token;
+
+      const response = await fetch(`${SERVER_URL}/extract-audio`, {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorMessage = await response.text();
+        throw new Error(errorMessage);
+      }
+
+      const job = await response.json();
+      setQueueInfo({ position: job.queuePosition, total: job.queueTotal, status: job.status });
+
+      let completed = false;
+      while (!completed) {
+        const statusResponse = await fetch(`${SERVER_URL}/compress/status/${job.jobId}`);
+        if (!statusResponse.ok) throw new Error("Could not check extraction queue status.");
+
+        const current = await statusResponse.json();
+        setQueueInfo({
+          position: current.queuePosition,
+          total: current.queueTotal,
+          status: current.status,
+        });
+
+        if (current.status === "failed") {
+          throw new Error(current.error || "Audio extraction failed.");
+        }
+
+        if (current.status === "complete") {
+          completed = true;
+          break;
+        }
+
+        if (current.status === "processing") {
+          setStatus("Extracting audio...");
+        } else {
+          setStatus("Waiting in the extraction queue...");
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      const downloadResponse = await fetch(`${SERVER_URL}/compress/download/${job.jobId}`);
+      if (!downloadResponse.ok) throw new Error("Extraction finished, but the audio could not be downloaded.");
+
+      const blob = await downloadResponse.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `extracted-audio.${audioFormat}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setStatus("Extraction complete!");
+      setQueueInfo(null);
+    } catch (error) {
+      console.log(error);
+      setStatus(`Failed: ${error.message}`);
+    }
+
+    setExtracting(false);
+  }
+
+  function chooseFile() {
+    fileInputRef.current.click();
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+
+    const droppedFile = e.dataTransfer.files[0];
+
+    if (droppedFile) {
+      setFile(droppedFile);
+      setStatus(`Selected: ${droppedFile.name}`);
+    }
+  }
+
+  return (
+    <>
+      <section className="hero">
+        <h1>
+          Audio
+          <br />
+          Extractor
+        </h1>
+      </section>
+
+      <section className="compress-card">
+        <div
+          className="drop-zone"
+          onClick={chooseFile}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <h2>Drag & drop your video here</h2>
+          <p>or click to browse</p>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              chooseFile();
+            }}
+          >
+            Choose Video
+          </button>
+
+          <input
+            ref={fileInputRef}
+            hidden
+            type="file"
+            accept="video/*,.mov,.mp4,.mkv,.webm,.avi"
+            onChange={(e) => {
+              const selected = e.target.files[0];
+
+              if (selected) {
+                setFile(selected);
+                setStatus(`Selected: ${selected.name}`);
+              }
+            }}
+          />
+
+          {file && <p>{file.name}</p>}
+        </div>
+
+        <div className="target-size-wrap">
+          <label htmlFor="audio-format">Output format</label>
+          <select
+            id="audio-format"
+            value={audioFormat}
+            onChange={(e) => setAudioFormat(e.target.value)}
+            disabled={extracting}
+          >
+            {AUDIO_FORMAT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="quality-hint">{AUDIO_FORMAT_DESCRIPTIONS[audioFormat]}</p>
+        </div>
+
+        {queueInfo && (
+          <div className={`queue-display ${queueInfo.status === "processing" ? "queue-processing" : ""}`}>
+            <div className="queue-display-icon">⚡</div>
+            <div className="queue-display-content">
+              <strong>
+                {queueInfo.status === "processing"
+                  ? "Now Extracting"
+                  : `Queue ${queueInfo.position} of ${queueInfo.total}`}
+              </strong>
+              <span>
+                {queueInfo.status === "processing"
+                  ? "Your audio is being extracted right now."
+                  : "Your video is waiting its turn."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <button className="compress-button" onClick={extractAudio} disabled={extracting}>
+          {extracting ? "Extracting..." : "Extract Audio"}
+        </button>
+
+        <p>{status}</p>
+      </section>
+    </>
+  );
+}
+
 function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -594,7 +807,7 @@ function App() {
                       setToolsOpen(false);
                     }}
                   >
-                    Audio Extractor <span className="nav-soon-tag">Soon</span>
+                    Audio Extractor
                   </span>
                 </div>
               )}
@@ -787,17 +1000,7 @@ function App() {
             />
           }
         />
-        <Route
-          path="/audio"
-          element={
-            <ComingSoon
-              icon="🎧"
-              title="Audio Extractor"
-              subtitle="Pull the audio track out of any video file."
-              description="Upload a video and get back just the audio — as MP3 or WAV — without the video. Great for saving a song, a voiceover, or a soundbite from a clip. Coming soon."
-            />
-          }
-        />
+        <Route path="/audio" element={<AudioExtractor />} />
         <Route path="/privacy" element={<Legal section="privacy" />} />
         <Route path="/terms" element={<Legal section="terms" />} />
         <Route path="/updates" element={<UpdatesArchive />} />

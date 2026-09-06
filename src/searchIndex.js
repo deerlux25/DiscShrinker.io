@@ -6,6 +6,8 @@ export const SEARCH_INDEX = [
 
   { path: "/converter", title: "Video Converter", snippet: "Convert HEVC, VP9, AV1, and other formats to widely-compatible MP4.", keywords: "convert converter codec format hevc h265 vp9 av1 compatibility mp4 h264" },
 
+  { path: "/audio", title: "Audio Extractor", snippet: "Pull just the audio track out of a video as MP3 or WAV.", keywords: "audio extract extractor mp3 wav sound track music" },
+
   { path: "/faq", title: "Supported Files", snippet: "Supports MP4, MOV, MKV, AVI, WebM, and HEVC videos.", keywords: "files formats mp4 mov mkv avi webm hevc supported" },
   { path: "/faq", title: "Codecs", snippet: "Works with H.264, H.265, VP9, AAC, and more.", keywords: "codecs h264 h265 vp9 aac video audio codec" },
   { path: "/faq", title: "Powered By", snippet: "Built using React, Node.js, Vite, and FFmpeg.", keywords: "powered by react node vite ffmpeg tech stack built" },
