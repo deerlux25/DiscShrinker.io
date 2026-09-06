@@ -20,15 +20,15 @@
 }
 
 [data-theme="dark"] {
-  /* Same readable text/surfaces as Original, calmer flat background —
-     no loud purple blooms. */
+  /* Same readable text/surfaces as Original, but a bold, near-black
+     background instead of the branded purple glow. */
   --fg-rgb: 255, 255, 255;
 
-  --page-bg: linear-gradient(180deg, #16151d, #0a0a0f);
+  --page-bg: #08080a;
 
   --text-heading: #f2ecff;
   --text-secondary: #aaa9bd;
-  --panel-bg: #17161f;
+  --panel-bg: #101014;
 }
 
 [data-theme="light"] {
@@ -37,10 +37,7 @@
      card surfaces, borders, and body text all correctly re-tint together. */
   --fg-rgb: 26, 20, 46;
 
-  --page-bg:
-    radial-gradient(circle at 50% -10%, rgba(155, 90, 255, .10), transparent 35%),
-    radial-gradient(circle at 90% 70%, rgba(150, 70, 255, .06), transparent 35%),
-    linear-gradient(180deg, #ffffff, #f4f2fa);
+  --page-bg: #ffffff;
 
   --text-heading: #1a142e;
   --text-secondary: #5b5866;
