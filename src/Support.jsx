@@ -255,7 +255,7 @@ function ContactModal({ open, onClose, goToPage }) {
                       key={i}
                       className="support-related-item"
                       onClick={() => {
-                        goToPage(a.page);
+                        goToPage(a.path);
                         onClose();
                       }}
                     >
