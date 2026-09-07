@@ -90,15 +90,48 @@ function cleanupOnAbortedUpload(req, res, next) {
   next();
 }
 
-// ---- In-memory stats (resets on server restart; fine for a lightweight status page) ----
-const stats = {
-  compressionsToday: 0,
-  totalCompressions: 0,
-  successCount: 0,
-  failCount: 0,
-  totalDurationMs: 0,
-  statsDate: new Date().toDateString(),
-};
+// ---- Stats (persisted to disk so "Compressed today" etc. survive
+// restarts - including Render's free-tier spin-down after inactivity,
+// which otherwise looks exactly like "refreshing the page resets it",
+// since waking a sleeping service restarts the whole Node process) ----
+const STATS_FILE = path.join(__dirname, "stats.json");
+
+function loadStats() {
+  const defaults = {
+    compressionsToday: 0,
+    totalCompressions: 0,
+    successCount: 0,
+    failCount: 0,
+    totalDurationMs: 0,
+    statsDate: new Date().toDateString(),
+  };
+
+  try {
+    const raw = fs.readFileSync(STATS_FILE, "utf8");
+    return { ...defaults, ...JSON.parse(raw) };
+  } catch {
+    return defaults; // file doesn't exist yet - start fresh
+  }
+}
+
+function saveStatsToDisk(rawStats) {
+  try {
+    fs.writeFileSync(STATS_FILE, JSON.stringify(rawStats, null, 2));
+  } catch (err) {
+    console.log("Could not persist stats:", err.message);
+  }
+}
+
+// A Proxy means every existing `stats.someField += 1` line across this
+// file automatically persists to disk - no need to add a save call at
+// each of the many places stats gets updated, and no risk of missing one.
+const stats = new Proxy(loadStats(), {
+  set(target, prop, value) {
+    target[prop] = value;
+    saveStatsToDisk(target);
+    return true;
+  },
+});
 
 function rolloverStatsIfNewDay() {
   const today = new Date().toDateString();
