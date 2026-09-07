@@ -220,7 +220,7 @@ function Compressor() {
         </div>
 
         <p className="upload-tip">
-          💡 Don't refresh or close this tab while uploading — the upload will be lost and
+          💡 Don't refresh or close this tab while uploading — the upload may be lost and
           you'll need to select your file and start again. Once uploading finishes, it's safe to refresh.
         </p>
 
@@ -438,7 +438,7 @@ function Converter() {
         </div>
 
         <p className="upload-tip">
-          💡 Don't refresh or close this tab while uploading — the upload will be lost and
+          💡 Don't refresh or close this tab while uploading — the upload may be lost and
           you'll need to select your file and start again. Once uploading finishes, it's safe to refresh.
         </p>
 
@@ -658,7 +658,7 @@ function AudioExtractor() {
         </div>
 
         <p className="upload-tip">
-          💡 Don't refresh or close this tab while uploading — the upload will be lost and
+          💡 Don't refresh or close this tab while uploading — the upload may be lost and
           you'll need to select your file and start again. Once uploading finishes, it's safe to refresh.
         </p>
 
