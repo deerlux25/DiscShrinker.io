@@ -9,6 +9,11 @@ dist/
 uploads/*
 !uploads/.gitkeep
 
+# server-generated runtime state — machine-specific, not source
+server/ticket-counter.json
+server/incidents.json
+server/stats.json
+
 # env / secrets
 .env
 .env.*
