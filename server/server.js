@@ -8,7 +8,11 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 
-app.use(cors());
+// exposedHeaders is needed so the frontend (a different origin) can
+// actually read Content-Disposition from fetch() responses - browsers
+// hide all but a small safelist of response headers cross-origin by
+// default, and Content-Disposition isn't in that safelist.
+app.use(cors({ exposedHeaders: ["Content-Disposition"] }));
 app.use(express.json());
 
 // ---- Optional accounts (Supabase) ----
@@ -52,9 +56,39 @@ async function identifyUser(req, res, next) {
 
 app.use(identifyUser);
 
+// Custom storage (rather than the simple `dest` shorthand) so we know the
+// exact temp filename up front - needed to clean it up if the connection
+// drops mid-upload (e.g. someone refreshes the page while uploading).
 const upload = multer({
-  dest: "uploads/"
+  storage: multer.diskStorage({
+    destination: "uploads/",
+    filename: (req, file, cb) => {
+      const generatedName = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      req._uploadTempPath = path.join(__dirname, "uploads", generatedName);
+      cb(null, generatedName);
+    },
+  }),
 });
+
+// If the client disconnects (e.g. a page refresh) before the upload
+// finishes, multer's route handler never runs - so nothing ever gets
+// queued, there's no job to "stop". The one real cleanup needed is the
+// partial file multer already wrote to disk before the connection died.
+function cleanupOnAbortedUpload(req, res, next) {
+  req.on("aborted", () => {
+    if (req._uploadTempPath && fs.existsSync(req._uploadTempPath)) {
+      fs.unlink(req._uploadTempPath, (err) => {
+        if (err) {
+          console.log("Could not clean up an aborted upload:", err.message);
+        } else {
+          console.log("Cleaned up a partial file from an aborted upload (e.g. a page refresh mid-upload).");
+        }
+      });
+    }
+  });
+
+  next();
+}
 
 // ---- In-memory stats (resets on server restart; fine for a lightweight status page) ----
 const stats = {
@@ -768,7 +802,7 @@ function runExtraction(job) {
   });
 }
 
-app.post("/compress", upload.single("video"), (req, res) => {
+app.post("/compress", cleanupOnAbortedUpload, upload.single("video"), (req, res) => {
   console.log("Received upload request");
 
   if (!req.file) {
@@ -801,8 +835,12 @@ app.post("/compress", upload.single("video"), (req, res) => {
 
   // Start the timer when the job actually begins, so queue waiting time
   // does not make compression performance look slower than it is.
+  const clientJobId = typeof req.body.clientJobId === "string" && /^[a-zA-Z0-9-]{10,80}$/.test(req.body.clientJobId)
+    ? req.body.clientJobId
+    : makeCompressionJobId();
+
   const job = {
-    id: makeCompressionJobId(),
+    id: clientJobId,
     type: "compress",
     req,
     res,
@@ -840,7 +878,7 @@ app.post("/compress", upload.single("video"), (req, res) => {
 // Codec/format converter - shares the SAME queue and concurrency limit as
 // /compress on purpose, since both run FFmpeg on the same small server and
 // need to be capped together, not separately.
-app.post("/convert", upload.single("video"), (req, res) => {
+app.post("/convert", cleanupOnAbortedUpload, upload.single("video"), (req, res) => {
   console.log("Received conversion request");
 
   if (!req.file) {
@@ -869,8 +907,12 @@ app.post("/convert", upload.single("video"), (req, res) => {
     ? requestedQuality
     : "balanced";
 
+  const clientJobId = typeof req.body.clientJobId === "string" && /^[a-zA-Z0-9-]{10,80}$/.test(req.body.clientJobId)
+    ? req.body.clientJobId
+    : makeCompressionJobId();
+
   const job = {
-    id: makeCompressionJobId(),
+    id: clientJobId,
     type: "convert",
     req,
     res,
@@ -906,7 +948,7 @@ app.post("/convert", upload.single("video"), (req, res) => {
 });
 
 // Audio extractor - shares the same queue/concurrency limit as the rest.
-app.post("/extract-audio", upload.single("video"), (req, res) => {
+app.post("/extract-audio", cleanupOnAbortedUpload, upload.single("video"), (req, res) => {
   console.log("Received audio extraction request");
 
   if (!req.file) {
@@ -933,8 +975,12 @@ app.post("/extract-audio", upload.single("video"), (req, res) => {
     outputName
   );
 
+  const clientJobId = typeof req.body.clientJobId === "string" && /^[a-zA-Z0-9-]{10,80}$/.test(req.body.clientJobId)
+    ? req.body.clientJobId
+    : makeCompressionJobId();
+
   const job = {
-    id: makeCompressionJobId(),
+    id: clientJobId,
     type: "extract",
     req,
     res,
