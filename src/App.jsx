@@ -14,6 +14,8 @@ import History from "./History";
 import { useTheme } from "./useTheme";
 import { useAuth } from "./useAuth";
 import { supabase } from "./supabaseClient";
+import { saveActiveJob, getActiveJob, clearActiveJob } from "./jobRecovery";
+import { pollJobUntilDone, downloadJobResult } from "./jobPolling";
 import {
   getDefaultTargetSizeKB,
   setDefaultTargetSizeKB,
@@ -47,11 +49,60 @@ function Compressor() {
     }
   }
 
+  // If a job was still queued/processing when this page got refreshed, the
+  // job itself kept running server-side the whole time - only the browser
+  // forgot about it. Pick it back up automatically instead of losing it.
+  useEffect(() => {
+    const savedJobId = getActiveJob("compress");
+    if (!savedJobId) return;
+
+    setCompressing(true);
+    setStatus("Resuming your compression from before the refresh...");
+
+    finishJob(savedJobId).catch((error) => {
+      console.log(error);
+      setStatus(`Failed: ${error.message}`);
+      clearActiveJob("compress");
+      setCompressing(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function finishJob(jobId) {
+    await pollJobUntilDone(jobId, (current) => {
+      setQueueInfo({
+        position: current.queuePosition,
+        total: current.queueTotal,
+        status: current.status,
+      });
+
+      setStatus(
+        current.status === "processing"
+          ? "Compressing your video..."
+          : "Waiting in the compression queue..."
+      );
+    });
+
+    await downloadJobResult(jobId, "compressed-video.mp4");
+
+    clearActiveJob("compress");
+    setStatus("Compression complete!");
+    setQueueInfo(null);
+    setCompressing(false);
+  }
+
   async function compressVideo() {
     if (!file) {
       setStatus("Please select a video first.");
       return;
     }
+
+    // Generated and saved BEFORE the upload starts, on purpose - this way
+    // the ID survives a refresh no matter when it happens: mid-upload,
+    // or even in the split second after the upload finished but before
+    // the server's response made it back to this page.
+    const clientJobId = crypto.randomUUID();
+    saveActiveJob("compress", clientJobId);
 
     setCompressing(true);
     setQueueInfo(null);
@@ -61,6 +112,7 @@ function Compressor() {
       const formData = new FormData();
       formData.append("video", file);
       formData.append("targetSizeKB", targetSizeKB);
+      formData.append("clientJobId", clientJobId);
 
       const sessionResult = user ? await supabase.auth.getSession() : null;
       const accessToken = sessionResult?.data?.session?.access_token;
@@ -79,54 +131,12 @@ function Compressor() {
       const job = await response.json();
       setQueueInfo({ position: job.queuePosition, total: job.queueTotal, status: job.status });
 
-      let completed = false;
-      while (!completed) {
-        const statusResponse = await fetch(`${SERVER_URL}/compress/status/${job.jobId}`);
-        if (!statusResponse.ok) throw new Error("Could not check compression queue status.");
-
-        const current = await statusResponse.json();
-        setQueueInfo({
-          position: current.queuePosition,
-          total: current.queueTotal,
-          status: current.status,
-        });
-
-        if (current.status === "failed") {
-          throw new Error(current.error || "Video compression failed.");
-        }
-
-        if (current.status === "complete") {
-          completed = true;
-          break;
-        }
-
-        if (current.status === "processing") {
-          setStatus("Compressing your video...");
-        } else {
-          setStatus("Waiting in the compression queue...");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      const downloadResponse = await fetch(`${SERVER_URL}/compress/download/${job.jobId}`);
-      if (!downloadResponse.ok) throw new Error("Compression finished, but the video could not be downloaded.");
-
-      const blob = await downloadResponse.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "compressed-video.mp4";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      setStatus("Compression complete!");
-      setQueueInfo(null);
+      await finishJob(clientJobId);
     } catch (error) {
       console.log(error);
       setStatus(`Failed: ${error.message}`);
+      clearActiveJob("compress");
+      setCompressing(false);
 
       try {
         window.localStorage.setItem(
@@ -144,8 +154,6 @@ function Compressor() {
         console.log("Could not save diagnostics:", storageError);
       }
     }
-
-    setCompressing(false);
   }
 
   function chooseFile() {
@@ -210,6 +218,11 @@ function Compressor() {
 
           {file && <p>{file.name}</p>}
         </div>
+
+        <p className="upload-tip">
+          💡 Don't refresh or close this tab while uploading — the upload will be lost and
+          you'll need to select your file and start again. Once uploading finishes, it's safe to refresh.
+        </p>
 
         <div className="target-size-wrap">
           <label htmlFor="target-size">Target file size</label>
@@ -277,11 +290,53 @@ function Converter() {
 
   const fileInputRef = useRef(null);
 
+  useEffect(() => {
+    const savedJobId = getActiveJob("convert");
+    if (!savedJobId) return;
+
+    setConverting(true);
+    setStatus("Resuming your conversion from before the refresh...");
+
+    finishJob(savedJobId).catch((error) => {
+      console.log(error);
+      setStatus(`Failed: ${error.message}`);
+      clearActiveJob("convert");
+      setConverting(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function finishJob(jobId) {
+    await pollJobUntilDone(jobId, (current) => {
+      setQueueInfo({
+        position: current.queuePosition,
+        total: current.queueTotal,
+        status: current.status,
+      });
+
+      setStatus(
+        current.status === "processing"
+          ? "Converting your video..."
+          : "Waiting in the conversion queue..."
+      );
+    });
+
+    await downloadJobResult(jobId, "converted-video.mp4");
+
+    clearActiveJob("convert");
+    setStatus("Conversion complete!");
+    setQueueInfo(null);
+    setConverting(false);
+  }
+
   async function convertVideo() {
     if (!file) {
       setStatus("Please select a video first.");
       return;
     }
+
+    const clientJobId = crypto.randomUUID();
+    saveActiveJob("convert", clientJobId);
 
     setConverting(true);
     setQueueInfo(null);
@@ -291,6 +346,7 @@ function Converter() {
       const formData = new FormData();
       formData.append("video", file);
       formData.append("quality", quality);
+      formData.append("clientJobId", clientJobId);
 
       const sessionResult = user ? await supabase.auth.getSession() : null;
       const accessToken = sessionResult?.data?.session?.access_token;
@@ -309,57 +365,13 @@ function Converter() {
       const job = await response.json();
       setQueueInfo({ position: job.queuePosition, total: job.queueTotal, status: job.status });
 
-      let completed = false;
-      while (!completed) {
-        const statusResponse = await fetch(`${SERVER_URL}/compress/status/${job.jobId}`);
-        if (!statusResponse.ok) throw new Error("Could not check conversion queue status.");
-
-        const current = await statusResponse.json();
-        setQueueInfo({
-          position: current.queuePosition,
-          total: current.queueTotal,
-          status: current.status,
-        });
-
-        if (current.status === "failed") {
-          throw new Error(current.error || "Video conversion failed.");
-        }
-
-        if (current.status === "complete") {
-          completed = true;
-          break;
-        }
-
-        if (current.status === "processing") {
-          setStatus("Converting your video...");
-        } else {
-          setStatus("Waiting in the conversion queue...");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      const downloadResponse = await fetch(`${SERVER_URL}/compress/download/${job.jobId}`);
-      if (!downloadResponse.ok) throw new Error("Conversion finished, but the video could not be downloaded.");
-
-      const blob = await downloadResponse.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "converted-video.mp4";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      setStatus("Conversion complete!");
-      setQueueInfo(null);
+      await finishJob(clientJobId);
     } catch (error) {
       console.log(error);
       setStatus(`Failed: ${error.message}`);
+      clearActiveJob("convert");
+      setConverting(false);
     }
-
-    setConverting(false);
   }
 
   function chooseFile() {
@@ -424,6 +436,11 @@ function Converter() {
 
           {file && <p>{file.name}</p>}
         </div>
+
+        <p className="upload-tip">
+          💡 Don't refresh or close this tab while uploading — the upload will be lost and
+          you'll need to select your file and start again. Once uploading finishes, it's safe to refresh.
+        </p>
 
         <div className="target-size-wrap">
           <label htmlFor="quality">Output quality</label>
@@ -490,11 +507,56 @@ function AudioExtractor() {
 
   const fileInputRef = useRef(null);
 
+  useEffect(() => {
+    const savedJobId = getActiveJob("extract");
+    if (!savedJobId) return;
+
+    setExtracting(true);
+    setStatus("Resuming your extraction from before the refresh...");
+
+    finishJob(savedJobId).catch((error) => {
+      console.log(error);
+      setStatus(`Failed: ${error.message}`);
+      clearActiveJob("extract");
+      setExtracting(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function finishJob(jobId) {
+    await pollJobUntilDone(jobId, (current) => {
+      setQueueInfo({
+        position: current.queuePosition,
+        total: current.queueTotal,
+        status: current.status,
+      });
+
+      setStatus(
+        current.status === "processing"
+          ? "Extracting audio..."
+          : "Waiting in the extraction queue..."
+      );
+    });
+
+    // Fallback name only - the actual downloaded filename/extension comes
+    // from the server via Content-Disposition, so this stays correct even
+    // if the format choice below was reset by a page refresh.
+    await downloadJobResult(jobId, `extracted-audio.${audioFormat}`);
+
+    clearActiveJob("extract");
+    setStatus("Extraction complete!");
+    setQueueInfo(null);
+    setExtracting(false);
+  }
+
   async function extractAudio() {
     if (!file) {
       setStatus("Please select a video first.");
       return;
     }
+
+    const clientJobId = crypto.randomUUID();
+    saveActiveJob("extract", clientJobId);
 
     setExtracting(true);
     setQueueInfo(null);
@@ -504,6 +566,7 @@ function AudioExtractor() {
       const formData = new FormData();
       formData.append("video", file);
       formData.append("audioFormat", audioFormat);
+      formData.append("clientJobId", clientJobId);
 
       const sessionResult = user ? await supabase.auth.getSession() : null;
       const accessToken = sessionResult?.data?.session?.access_token;
@@ -522,57 +585,13 @@ function AudioExtractor() {
       const job = await response.json();
       setQueueInfo({ position: job.queuePosition, total: job.queueTotal, status: job.status });
 
-      let completed = false;
-      while (!completed) {
-        const statusResponse = await fetch(`${SERVER_URL}/compress/status/${job.jobId}`);
-        if (!statusResponse.ok) throw new Error("Could not check extraction queue status.");
-
-        const current = await statusResponse.json();
-        setQueueInfo({
-          position: current.queuePosition,
-          total: current.queueTotal,
-          status: current.status,
-        });
-
-        if (current.status === "failed") {
-          throw new Error(current.error || "Audio extraction failed.");
-        }
-
-        if (current.status === "complete") {
-          completed = true;
-          break;
-        }
-
-        if (current.status === "processing") {
-          setStatus("Extracting audio...");
-        } else {
-          setStatus("Waiting in the extraction queue...");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      const downloadResponse = await fetch(`${SERVER_URL}/compress/download/${job.jobId}`);
-      if (!downloadResponse.ok) throw new Error("Extraction finished, but the audio could not be downloaded.");
-
-      const blob = await downloadResponse.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `extracted-audio.${audioFormat}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      setStatus("Extraction complete!");
-      setQueueInfo(null);
+      await finishJob(clientJobId);
     } catch (error) {
       console.log(error);
       setStatus(`Failed: ${error.message}`);
+      clearActiveJob("extract");
+      setExtracting(false);
     }
-
-    setExtracting(false);
   }
 
   function chooseFile() {
@@ -637,6 +656,11 @@ function AudioExtractor() {
 
           {file && <p>{file.name}</p>}
         </div>
+
+        <p className="upload-tip">
+          💡 Don't refresh or close this tab while uploading — the upload will be lost and
+          you'll need to select your file and start again. Once uploading finishes, it's safe to refresh.
+        </p>
 
         <div className="target-size-wrap">
           <label htmlFor="audio-format">Output format</label>
