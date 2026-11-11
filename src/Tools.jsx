@@ -38,10 +38,26 @@ function Tools() {
 
   return (
     <section className="home-page tools-page">
-      <div className="tools-title">
-        <span className="home-eyebrow">ALL TOOLS</span>
-        <h1>🛠️ DiscShrink Tools</h1>
-        <p>Every free tool DiscShrink offers, in one place.</p>
+      <div className="home-top tools-top">
+        <div className="tools-title">
+          <span className="home-eyebrow">ALL TOOLS</span>
+          <h1>🛠️ DiscShrink Tools</h1>
+          <p>Every free tool DiscShrink offers, in one place.</p>
+        </div>
+        <div className="home-side">
+          <div className="side-video">
+            <span className="side-video-label">🎥 See it in action</span>
+            <div className="side-video-frame">
+              <iframe
+                src="https://www.youtube.com/embed/4unocgCi88o"
+                title="DiscShrink video"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="home-tools-grid">
