@@ -21,19 +21,33 @@ function Home({ goToPage }) {
           </p>
         </div>
 
-        {latestUpdate && (
-          <Link to={`/updates/${latestUpdate.slug}`} className="home-announcement">
-            <span className="home-announcement-label">📢 DiscShrink Update</span>
-            <h3>{latestUpdate.title}</h3>
-            <p>{latestUpdate.summary}</p>
-            <div className="home-announcement-footer">
-              <span className="home-announcement-date">
-                {CATEGORIES[latestUpdate.category]?.icon} {formatUpdateDate(latestUpdate.date)}
-              </span>
-              <span className="home-announcement-cta">Read Update →</span>
+        <div className="home-side">
+          {latestUpdate && (
+            <Link to={`/updates/${latestUpdate.slug}`} className="home-announcement">
+              <span className="home-announcement-label">📢 DiscShrink Update</span>
+              <h3>{latestUpdate.title}</h3>
+              <p>{latestUpdate.summary}</p>
+              <div className="home-announcement-footer">
+                <span className="home-announcement-date">
+                  {CATEGORIES[latestUpdate.category]?.icon} {formatUpdateDate(latestUpdate.date)}
+                </span>
+                <span className="home-announcement-cta">Read Update →</span>
+              </div>
+            </Link>
+          )}
+          <div className="side-video">
+            <span className="side-video-label">🎥 See it in action</span>
+            <div className="side-video-frame">
+              <iframe
+                src="https://www.youtube.com/embed/4unocgCi88o"
+                title="DiscShrink video"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
             </div>
-          </Link>
-        )}
+          </div>
+        </div>
 
       </div>
 
