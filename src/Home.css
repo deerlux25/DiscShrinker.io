@@ -274,3 +274,77 @@
     gap: 16px;
   }
 }
+
+/* ===== Side column (update card + video) ===== */
+
+.home-side {
+  flex: 0 0 300px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.home-side .home-announcement {
+  flex: none;
+  width: auto;
+  align-self: auto;
+}
+
+.side-video {
+  padding: 14px;
+
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045));
+  box-shadow:
+    0 18px 55px rgba(30, 10, 70, 0.34),
+    0 0 35px rgba(130, 75, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  text-align: left;
+}
+
+.side-video-label {
+  display: block;
+  margin: 2px 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: rgba(210, 194, 255, 0.8);
+}
+
+.side-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+}
+
+.side-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Tools page: title on the left, video on the side */
+.tools-top .tools-title {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+@media (max-width: 800px) {
+  .home-side {
+    flex: none;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .home-side .home-announcement {
+    max-width: none;
+  }
+}
